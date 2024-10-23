@@ -500,6 +500,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
 
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SequenceSketch>()?;
+    m.add_class::<AniResult>()?;
 
     m.add_function(wrap_pyfunction!(query, &m)?)?;
 
