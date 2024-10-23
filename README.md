@@ -2,6 +2,22 @@
 
 *[PyO3](https://pyo3.rs/) bindings and Python interface to [sylph](https://github.com/bluenote-1577/sylph), an ultrafast method for containment ANI querying and taxonomic profiling.*
 
+[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/pysylph/test.yml?branch=main&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pysylph/actions)
+[![Coverage](https://img.shields.io/codecov/c/gh/althonos/pysylph/branch/main.svg?style=flat-square&maxAge=3600)](https://codecov.io/gh/althonos/pysylph/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/mit/)
+[![PyPI](https://img.shields.io/pypi/v/pysylph.svg?style=flat-square&maxAge=3600)](https://pypi.org/project/pysylph)
+[![Bioconda](https://img.shields.io/conda/vn/bioconda/pysylph?style=flat-square&maxAge=3600&logo=anaconda)](https://anaconda.org/bioconda/pysylph)
+[![AUR](https://img.shields.io/aur/version/python-pysylph?logo=archlinux&style=flat-square&maxAge=3600)](https://aur.archlinux.org/packages/python-pysylph)
+[![Wheel](https://img.shields.io/pypi/wheel/pysylph.svg?style=flat-square&maxAge=3600)](https://pypi.org/project/pysylph/#files)
+[![Python Versions](https://img.shields.io/pypi/pyversions/pysylph.svg?style=flat-square&maxAge=600)](https://pypi.org/project/pysylph/#files)
+[![Python Implementations](https://img.shields.io/pypi/implementation/pysylph.svg?style=flat-square&maxAge=600&label=impl)](https://pypi.org/project/pysylph/#files)
+[![Source](https://img.shields.io/badge/source-GitHub-303030.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pysylph/)
+[![Mirror](https://img.shields.io/badge/mirror-LUMC-001158?style=flat-square&maxAge=2678400)](https://git.lumc.nl/mflarralde/pysylph/)
+[![Issues](https://img.shields.io/github/issues/althonos/pysylph.svg?style=flat-square&maxAge=600)](https://github.com/althonos/pysylph/issues)
+[![Docs](https://img.shields.io/readthedocs/pysylph/latest?style=flat-square&maxAge=600)](https://pysylph.readthedocs.io)
+[![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pysylph/blob/master/CHANGELOG.md)
+[![Downloads](https://img.shields.io/pypi/dm/pysylph?style=flat-square&color=303f9f&maxAge=86400&label=downloads)](https://pepy.tech/project/pysylph)
+
 ## 🗺️ Overview
 
 `sylph` is a method developed by [Jim Shaw](https://jim-shaw-bluenote.github.io/)
