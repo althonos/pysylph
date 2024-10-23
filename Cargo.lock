@@ -655,10 +655,12 @@ name = "pysylph"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "fastrand",
  "fxhash",
  "memmap",
  "pyo3",
  "serde",
+ "statrs",
  "sylph",
 ]
 

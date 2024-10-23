@@ -2,6 +2,7 @@ extern crate bincode;
 extern crate pyo3;
 extern crate sylph;
 extern crate memmap;
+extern crate statrs;
 
 use std::sync::Arc;
 
@@ -13,6 +14,8 @@ use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
 use sylph::types::SequencesSketch;
+
+mod exports;
 
 // --- GenomeSketch ------------------------------------------------------------
 
@@ -200,7 +203,7 @@ impl SequenceSketch {
             bincode::deserialize_from(reader)
         };
 
-        // hadnle error
+        // handle error
         match result {
             Ok(sketches) => Ok(Self::from(sketches)),
             Err(e) => {
@@ -361,11 +364,11 @@ impl SequenceSketcher {
             let kmer_pair = if seq.len() > 0 {
                 None
             } else {
-                sylph::sketch::pair_kmer_single(seq)
+                self::exports::sketch::pair_kmer_single(seq)
             };
             sylph::sketch::extract_markers(&seq, &mut vec, self.c, self.k);
             for km in vec {
-                sylph::sketch::dup_removal_lsh_full_exact(
+                self::exports::sketch::dup_removal_lsh_full_exact(
                     &mut kmer_map,
                     &mut kmer_to_pair_table,
                     &km,
@@ -466,13 +469,13 @@ fn query<'py>(
     let kmer_id_opt = if let Some(x) = seq_id {
         Some(x.powf(sample.sketch.k as f64))
     } else {
-        sylph::contain::get_kmer_identity(&sample.sketch, estimate_unknown)
+        self::exports::contain::get_kmer_identity(&sample.sketch, estimate_unknown)
     };
 
     // extract all matching kmers
     let mut stats = Vec::new();
     for sketch in &database.sketches {
-        if let Some(res) = sylph::contain::get_stats(
+        if let Some(res) = self::exports::contain::get_stats(
             &args, 
             &sketch, 
             &sample.sketch, 
@@ -484,7 +487,7 @@ fn query<'py>(
     }
 
     // estimate true coverage
-    sylph::contain::estimate_true_cov(
+    self::exports::contain::estimate_true_cov(
         &mut stats, 
         kmer_id_opt, 
         estimate_unknown, 

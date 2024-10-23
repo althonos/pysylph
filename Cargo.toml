@@ -13,6 +13,8 @@ pyo3 = "0.22.5"
 bincode = "*"
 memmap = "*"
 fxhash = "*"
+statrs = "*"
+fastrand = "*"
 
 [dependencies.serde]
 features = ["rc"]
