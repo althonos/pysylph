@@ -5,7 +5,11 @@ extern crate memmap;
 extern crate statrs;
 
 use std::sync::Arc;
+use std::io::Read;
 
+use bincode::de::read::IoReader;
+use bincode::DefaultOptions;
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
@@ -14,6 +18,7 @@ use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
 use rayon::prelude::*;
+use serde::Deserialize;
 use sylph::types::SequencesSketch;
 
 mod exports;
@@ -160,6 +165,89 @@ impl Database {
         bincode::serialize_into(f, &slf.sketches).unwrap();
         Ok(())
     }
+}
+
+// --- Database Reader ---------------------------------------------------------
+
+struct DatabaseReader<R: Read> {
+    reader: bincode::de::Deserializer<IoReader<R>, bincode::config::WithOtherTrailing<bincode::config::WithOtherIntEncoding<bincode::config::DefaultOptions, bincode::config::FixintEncoding>, bincode::config::AllowTrailing>>,
+    length: usize,
+}
+
+impl<R: Read> DatabaseReader<R> {
+    fn new(mut r: R) -> Result<Self, bincode::Error> {
+        use bincode::Options;
+        let mut reader = bincode::de::Deserializer::with_reader(r, bincode::config::DefaultOptions::new().with_fixint_encoding().allow_trailing_bytes());
+        let length: usize = serde::Deserialize::deserialize(&mut reader).unwrap_or(0);
+        Ok(Self { reader, length })
+    }
+}
+
+impl<R: Read> std::iter::Iterator for DatabaseReader<R> {
+    type Item = Result<sylph::types::GenomeSketch, bincode::Error>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.length > 0 {
+            use serde::Deserialize;
+            let item = sylph::types::GenomeSketch::deserialize(&mut self.reader).unwrap();
+            self.length -= 1;
+            Some(Ok(item))
+        } else {
+            None
+        }
+    }
+}
+
+
+#[pyclass(module = "pysylph.lib")]
+pub struct DatabaseFile {
+    reader: DatabaseReader<std::io::BufReader<std::fs::File>>,
+}
+
+#[pymethods]
+impl DatabaseFile {
+    #[new]
+    fn __new__(path: &str) -> PyResult<Self> {
+        let f = std::fs::File::open(path).map(std::io::BufReader::new)?;
+        let reader = DatabaseReader::new(f).unwrap();
+        Ok(Self { reader })
+    }
+
+    fn __len__(&self) -> usize {
+        self.reader.length
+    }
+
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> PyResult<Option<GenomeSketch>> {
+        match self.reader.next() {
+            Some(Err(e)) => Err(PyRuntimeError::new_err(e.to_string())),
+            None => Ok(None),
+            Some(Ok(item)) => Ok(Some(GenomeSketch::from(item)))
+        }
+    }
+
+    fn read_all(&mut self) -> Database {
+        // let mut db = Database::from(Vec::with_capacity(self.reader.length));
+        // for sketch in &mut self.reader {
+        //     db.sketches.push(Arc::new(sketch.unwrap()));
+        // }
+        let vec = Vec::<Arc<sylph::types::GenomeSketch>>::deserialize(&mut self.reader.reader).unwrap();
+        Database::from(vec)
+    }
+
+    // fn read(&mut self) -> GenomeSketch {
+
+    //     use serde::de::Deserialize;
+
+        
+    //     let l: usize = serde::Deserialize::deserialize(&mut d).unwrap();
+
+
+    //     // println!("{:?}", d);
+    //     unimplemented!()
+    // }
 }
 
 // --- SequenceSketch ----------------------------------------------------------
@@ -621,6 +709,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
 
     m.add_class::<Sketcher>()?;
     m.add_class::<Database>()?;
+    m.add_class::<DatabaseFile>()?;
 
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SequenceSketch>()?;
