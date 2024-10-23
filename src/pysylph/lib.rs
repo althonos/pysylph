@@ -416,7 +416,7 @@ fn query<'py>(
         file_list: Default::default(),
         min_count_correct: 3.0,
         min_number_kmers: 60.0,
-        minimum_ani: Some(0.9),
+        minimum_ani: None,
         threads: 3,
         sample_threads: None,
         trace: false,
@@ -492,6 +492,121 @@ fn query<'py>(
         .collect())
 }
 
+#[pyfunction]
+#[pyo3(signature = (sample, database, seq_id = None, estimate_unknown = false))]
+fn profile<'py>(
+    sample: PyRef<'py, SequenceSketch>, 
+    database: PyRef<'py, Database>, 
+    seq_id: Option<f64>,
+    estimate_unknown: bool,
+) -> PyResult<Vec<AniResult>> {
+    let py = sample.py();
+
+    let args = sylph::cmdline::ContainArgs {
+        files: Default::default(),
+        file_list: Default::default(),
+        min_count_correct: 3.0,
+        min_number_kmers: 60.0,
+        minimum_ani: None,
+        threads: 3,
+        sample_threads: None,
+        trace: false,
+        debug: false,
+        estimate_unknown: false,
+        seq_id: None,
+        redundant_ani: 99.0,
+        first_pair: Default::default(),
+        second_pair: Default::default(),
+        c: sample.sketch.c,    
+        k: sample.sketch.k,
+        individual: false,
+        min_spacing_kmer: 30,
+        out_file_name: None,
+        log_reassignments: false,
+        pseudotax: true,
+        ratio: false,
+        mme: false,
+        mle: false,
+        nb: false,
+        no_ci: false,
+        no_adj: false,
+        mean_coverage: false,
+    };
+
+    // estimate sample kmer identity
+    let kmer_id_opt = if let Some(x) = seq_id {
+        Some(x.powf(sample.sketch.k as f64))
+    } else {
+        self::exports::contain::get_kmer_identity(&sample.sketch, estimate_unknown)
+    };
+
+    // extract all matching kmers
+    let mut stats = Vec::new();
+    for sketch in &database.sketches {
+        if let Some(res) = self::exports::contain::get_stats(
+            &args, 
+            &sketch, 
+            &sample.sketch, 
+            None,
+            false,
+        ) {
+            stats.push(res);
+        }
+    }
+
+    // estimate true coverage
+    self::exports::contain::estimate_true_cov(
+        &mut stats, 
+        kmer_id_opt, 
+        estimate_unknown, 
+        sample.sketch.mean_read_length, 
+        sample.sketch.k
+    );
+
+    if args.pseudotax{
+        // reassign k-mers
+        let winner_map = self::exports::contain::winner_table(&stats, args.log_reassignments);
+        let remaining_stats = stats
+            .iter()
+            .map(|x| x.genome_sketch)
+            .flat_map(|genome_sketch| self::exports::contain::get_stats(&args, &genome_sketch, &sample.sketch, Some(&winner_map), args.log_reassignments))
+            .collect();
+        stats = self::exports::contain::derep_if_reassign_threshold(&stats, remaining_stats, args.redundant_ani, sample.sketch.k);
+        self::exports::contain::estimate_true_cov(&mut stats, kmer_id_opt, estimate_unknown, sample.sketch.mean_read_length, sample.sketch.k);
+        println!("{} has {} genomes passing profiling threshold. ", &sample.sketch.file_name, stats.len());
+
+        // estimate unknown if needed
+        let mut bases_explained = 1.;
+        if args.estimate_unknown {
+            bases_explained = self::exports::contain::estimate_covered_bases(&stats, &sample.sketch, sample.sketch.mean_read_length, sample.sketch.k);
+        }
+
+        // compute coverage and relative abundances
+        let total_cov = stats.iter().map(|x| x.final_est_cov).sum::<f64>();
+        let total_seq_cov = stats.iter().map(|x| x.final_est_cov * x.genome_sketch.gn_size as f64).sum::<f64>();
+        for result in stats.iter_mut(){
+            result.rel_abund = Some(result.final_est_cov / total_cov * 100.0);
+            result.seq_abund = Some(result.final_est_cov * result.genome_sketch.gn_size as f64 / total_seq_cov * 100.0 * bases_explained);
+        }
+    }
+
+    // sort by relative abundance
+    stats.sort_by(|x,y| y.rel_abund.unwrap().partial_cmp(&x.rel_abund.unwrap()).unwrap());
+
+    // convert result
+    Ok(stats.into_iter()
+        .map(|r| {
+            let sketch = database.sketches.iter()
+                .find(|x| r.genome_sketch.file_name == x.file_name )
+                .unwrap();
+            AniResult {
+                result: unsafe { std::mem::transmute(r) },
+                genome: sketch.clone(),
+            }
+
+        })
+        .collect())
+}
 
 // --- Initializer -------------------------------------------------------------
 
@@ -511,6 +626,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<AniResult>()?;
 
     m.add_function(wrap_pyfunction!(query, &m)?)?;
+    m.add_function(wrap_pyfunction!(profile, &m)?)?;
 
     Ok(())
 }

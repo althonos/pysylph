@@ -1,26 +1,14 @@
 use sylph::cmdline::ContainArgs;
-// use std::path::Path;
-// use std::io::prelude::*;
-// use std::io;
-// use std::io::BufWriter;
 use fxhash::FxHashMap;
 use fastrand;
-// use crate::constants::*;
 use sylph::inference::ratio_lambda;
 use sylph::inference::mme_lambda;
 use sylph::inference::mle_zip;
 use sylph::inference::var;
 use sylph::inference::mean;
 use sylph::inference::binary_search_lambda;
-// use crate::sketch::*;
-// use crate::types::*;
-// use log::*;
-// use rayon::prelude::*;
 use statrs::distribution::DiscreteCDF;
 use statrs::distribution::Poisson;
-// use std::fs::File;
-// use std::io::BufReader;
-// use std::sync::Mutex;
 use sylph::types::SequencesSketch;
 use sylph::types::GenomeSketch;
 use sylph::types::AdjustStatus;
@@ -33,6 +21,30 @@ use sylph::constants::MAX_MEDIAN_FOR_MEAN_FINAL_EST;
 use sylph::constants::MIN_ANI_P_DEF;
 use sylph::constants::MIN_ANI_DEF;
 
+
+pub fn derep_if_reassign_threshold<'a>(results_old: &Vec<AniResult>, results_new: Vec<AniResult<'a>>, ani_thresh: f64, k: usize) -> Vec<AniResult<'a>>{
+    let ani_thresh = ani_thresh/100.;
+
+    let mut gn_sketch_to_contain = FxHashMap::default();
+    for result in results_old.iter(){
+        gn_sketch_to_contain.insert(result.genome_sketch, result);
+    }
+
+    let threshold = f64::powf(ani_thresh, k as f64);
+    let mut return_vec = vec![];
+    for result in results_new.into_iter(){
+        let old_res = &gn_sketch_to_contain[result.genome_sketch];
+        let num_kmer_reassign = (old_res.containment_index.0 - result.containment_index.0) as f64;
+        let reass_thresh = threshold * result.containment_index.1 as f64;
+        if num_kmer_reassign < reass_thresh{
+            return_vec.push(result);
+        }
+        // else{
+        //     log::debug!("genome {} had num k-mers reassigned = {}, threshold was {}, removing.", result.gn_name, num_kmer_reassign, reass_thresh);
+        // }
+    }
+    return return_vec;
+}
 
 pub fn estimate_true_cov(results: &mut Vec<AniResult>, kmer_id_opt: Option<f64>, 
     estimate_unknown: bool, read_length: f64, k: usize){
@@ -48,7 +60,75 @@ pub fn estimate_true_cov(results: &mut Vec<AniResult>, kmer_id_opt: Option<f64>,
     }
     }
 
+pub fn estimate_covered_bases(results: &Vec<AniResult>, sequence_sketch: &SequencesSketch, read_length: f64, k: usize) -> f64{
+    let multiplier = read_length / (read_length - (k as f64) + 1.);
 
+    let mut num_covered_bases = 0.;
+    for res in results.iter(){
+        num_covered_bases += (res.genome_sketch.gn_size as f64) * res.final_est_cov
+    }
+    let mut num_total_counts = 0;
+    for count in sequence_sketch.kmer_counts.values(){
+        num_total_counts += *count as usize;
+    }
+    let num_tentative_bases = sequence_sketch.c * num_total_counts;
+    let num_tentative_bases = num_tentative_bases as f64 * multiplier;
+    if num_tentative_bases == 0.{
+        return 0.;
+    }
+    return f64::min(num_covered_bases as f64 / num_tentative_bases, 1.);
+}
+
+pub fn winner_table<'a>(results : &'a Vec<AniResult>, log_reassign: bool) -> FxHashMap<Kmer, (f64,&'a GenomeSketch, bool)> {
+    let mut kmer_to_genome_map : FxHashMap<_,_> = FxHashMap::default();
+    for res in results.iter(){
+        //let gn_sketch = &genome_sketches[res.genome_sketch_index];
+        let gn_sketch = res.genome_sketch;
+        for kmer in gn_sketch.genome_kmers.iter(){
+            let v = kmer_to_genome_map.entry(*kmer).or_insert((res.final_est_ani, res.genome_sketch, false));
+            if res.final_est_ani > v.0{
+                *v = (res.final_est_ani, gn_sketch, true);
+            }
+        }
+        
+        if gn_sketch.pseudotax_tracked_nonused_kmers.is_some(){
+            for kmer in gn_sketch.pseudotax_tracked_nonused_kmers.as_ref().unwrap().iter(){
+                let v = kmer_to_genome_map.entry(*kmer).or_insert((res.final_est_ani, res.genome_sketch, false));
+                if res.final_est_ani > v.0{
+                    *v = (res.final_est_ani, gn_sketch, true);
+                }
+            }
+        }
+    }
+
+    //log reassigned kmers
+    // if log_reassign{
+    //     log::info!("------------- Logging k-mer reassignments -----------------");
+    //     let mut sketch_to_index = FxHashMap::default();
+    //     for (i,res) in results.iter().enumerate(){
+    //         log::info!("Index\t{}\t{}\t{}", i, res.genome_sketch.file_name, res.genome_sketch.first_contig_name);
+    //         sketch_to_index.insert(res.genome_sketch, i);
+    //     }
+    //     (0..results.len()).into_par_iter().for_each(|i|{
+    //         let res = &results[i];
+    //         let mut reassign_edge_map = FxHashMap::default();
+    //         for kmer in res.genome_sketch.genome_kmers.iter(){
+    //             let value = kmer_to_genome_map[kmer].1;
+    //             if value != res.genome_sketch{
+    //                 let edge_count = reassign_edge_map.entry((sketch_to_index[value],i)).or_insert(0);
+    //                 *edge_count += 1;
+    //             }
+    //         }
+    //         for (key,val) in reassign_edge_map{
+    //             if val > 10{
+    //                 log::info!("{}->{}\t{}\tkmers reassigned", key.0, key.1, val);
+    //             }
+    //         }
+    //     });
+    // }
+
+    return kmer_to_genome_map;
+}
 
 pub fn get_stats<'a>(
     args: &ContainArgs,

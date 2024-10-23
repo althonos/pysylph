@@ -1,5 +1,5 @@
 from . import lib
-from .lib import Sketcher, GenomeSketch, SequenceSketch, Database, AniResult, query
+from .lib import Sketcher, GenomeSketch, SequenceSketch, Database, AniResult, query, profile
 
 __version__ = lib.__version__
 __author__ = lib.__author__
@@ -12,4 +12,5 @@ __all__ = [
     "SequenceSketch",
     "AniResult",
     "query"
+    "profile"
 ]
