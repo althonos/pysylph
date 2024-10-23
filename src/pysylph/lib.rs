@@ -273,6 +273,9 @@ impl Sketcher {
     #[new]
     #[pyo3(signature = (c = 200, k = 31))]
     pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
+        if k != 21 && k != 31 {
+            return Err(PyValueError::new_err(format!("invalid k: expected 21 or 31, got {}", k)));
+        }
         Ok(Self { c, k, min_spacing: 30 })
     }
 
