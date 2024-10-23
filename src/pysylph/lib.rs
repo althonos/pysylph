@@ -217,6 +217,14 @@ impl SequenceSketch {
             }
         }
     }
+
+    /// Dump a sequence sketch to a path.
+    fn dump<'py>(slf: PyRef<'py, Self>, path: PyBackedStr) -> PyResult<()> {
+        let f = std::fs::File::create(&*path)?;
+
+        bincode::serialize_into(f, &slf.sketch).unwrap();
+        Ok(())
+    }
 }
 
 // --- ANIResult ---------------------------------------------------------------
@@ -269,7 +277,7 @@ impl Sketcher {
     }
 
     #[pyo3(signature = (name, contigs))]
-    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, contigs: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
+    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, contigs: Bound<'py, PyAny>) -> PyResult<GenomeSketch> {
         let py = slf.py();
         
         let mut gsketch = sylph::types::GenomeSketch::default();
@@ -280,8 +288,8 @@ impl Sketcher {
 
         // extract records
         let sequences = contigs
-            .iter()
-            .map(|s| PyBackedStr::extract_bound(&s))
+            .iter()?
+            .map(|r| r.and_then(|s| PyBackedStr::extract_bound(&s)))
             .collect::<PyResult<Vec<_>>>()?;
 
         // sketch all records while allowing parallel code
