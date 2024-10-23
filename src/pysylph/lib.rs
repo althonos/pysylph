@@ -279,8 +279,13 @@ impl Sketcher {
         Ok(Self { c, k, min_spacing: 30 })
     }
 
-    #[pyo3(signature = (name, contigs))]
-    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, contigs: Bound<'py, PyAny>) -> PyResult<GenomeSketch> {
+    #[pyo3(signature = (name, contigs, pseudotax=true))]
+    fn sketch_genome<'py>(
+        slf: PyRef<'py, Self>, 
+        name: String, 
+        contigs: Bound<'py, PyAny>,
+        pseudotax: bool,
+    ) -> PyResult<GenomeSketch> {
         let py = slf.py();
         
         let mut gsketch = sylph::types::GenomeSketch::default();
@@ -288,6 +293,9 @@ impl Sketcher {
         gsketch.c = slf.c;
         gsketch.k = slf.k;
         gsketch.file_name = name;
+        if pseudotax {
+            gsketch.pseudotax_tracked_nonused_kmers = Some(Vec::new());
+        }
 
         // extract records
         let sequences = contigs
@@ -320,7 +328,7 @@ impl Sketcher {
                 }
             }
 
-            //
+            // record kmers
             let mut last_pos = 0;
             let mut last_contig = 0;
             for &(contig, pos, km) in markers.iter() {
@@ -330,9 +338,9 @@ impl Sketcher {
                         last_contig = contig;
                         last_pos = pos;
                     }
-                    //  else if pseudotax {
-                    //     pseudotax_track_kmers.push(*km);
-                    // }
+                    else if let Some(kmers) = &mut gsketch.pseudotax_tracked_nonused_kmers {
+                        kmers.push(km);
+                    }
                 }
             }
         });
