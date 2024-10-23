@@ -254,14 +254,14 @@ impl AniResult {
 
 /// A genome sketcher.
 #[pyclass]
-pub struct GenomeSketcher {
+pub struct Sketcher {
     c: usize,
     k: usize,
     min_spacing: usize,
 }
 
 #[pymethods]
-impl GenomeSketcher {
+impl Sketcher {
     #[new]
     #[pyo3(signature = (c = 200, k = 31))]
     pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
@@ -269,7 +269,7 @@ impl GenomeSketcher {
     }
 
     #[pyo3(signature = (name, sequence, *sequences))]
-    fn sketch<'py>(slf: PyRef<'py, Self>, name: String, sequence: Bound<'py, PyAny>, sequences: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
+    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, sequence: Bound<'py, PyAny>, sequences: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
         let py = slf.py();
         
         let mut gsketch = sylph::types::GenomeSketch::default();
@@ -327,23 +327,6 @@ impl GenomeSketcher {
 
         Ok(GenomeSketch::from(gsketch))
     }
-}
-
-
-#[pyclass]
-pub struct SequenceSketcher {
-    c: usize,
-    k: usize,
-    min_spacing: usize,
-}
-
-#[pymethods]
-impl SequenceSketcher {
-    #[new]
-    #[pyo3(signature = (c = 200, k = 31))]
-    pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
-        Ok(Self { c, k, min_spacing: 30 })
-    }
 
     #[pyo3(signature = (name, reads))]
     fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SequenceSketch> {
@@ -396,7 +379,6 @@ impl SequenceSketcher {
         Ok(SequenceSketch::from(sketch))
     }
 }
-
 
 // --- Functions ---------------------------------------------------------------
 
@@ -526,8 +508,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
 
-    m.add_class::<GenomeSketcher>()?;
-    m.add_class::<SequenceSketcher>()?;
+    m.add_class::<Sketcher>()?;
     m.add_class::<Database>()?;
 
     m.add_class::<GenomeSketch>()?;
