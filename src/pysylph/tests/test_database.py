@@ -21,9 +21,9 @@ class TestDatabase(unittest.TestCase):
 
     def test_load_filename(self):
         if hasattr(importlib.resources, "files"):
-            handler = nullcontext(importlib.resources.files(__name__).joinpath("ecoli.syldb"))
+            handler = nullcontext(importlib.resources.files(__package__).joinpath("ecoli.syldb"))
         else:
-            handler = importlib.resources.path(__name__, "ecoli.syldb")
+            handler = importlib.resources.path(__package__, "ecoli.syldb")
         with handler as path:
             database = Database.load(os.fspath(path))
         self.assertEqual(len(database), 3)
