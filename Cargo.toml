@@ -29,3 +29,8 @@ tag = "v0.6.1"
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
+
+[[test]]
+name = "unittest"
+path = "src/pysylph/tests/unittest.rs"
+harness = false

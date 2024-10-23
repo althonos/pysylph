@@ -1,0 +1,29 @@
+import os
+import unittest
+import importlib.resources
+from contextlib import nullcontext
+
+from pysylph import Database
+
+
+
+class TestDatabase(unittest.TestCase):
+
+    def test_init_empty(self):
+        db1 = Database()
+        self.assertEqual(len(db1), 0)
+        db2 = Database([])
+        self.assertEqual(len(db2), 0)
+
+    def test_init_type_error(self):
+        with self.assertRaises(TypeError):
+            db = Database(123)
+
+    def test_load_filename(self):
+        if hasattr(importlib.resources, "files"):
+            handler = nullcontext(importlib.resources.files(__name__).joinpath("ecoli.syldb"))
+        else:
+            handler = importlib.resources.path(__name__, "ecoli.syldb")
+        with handler as path:
+            database = Database.load(os.fspath(path))
+        self.assertEqual(len(database), 3)
