@@ -655,6 +655,7 @@ name = "pysylph"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "fxhash",
  "memmap",
  "pyo3",
  "serde",

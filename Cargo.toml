@@ -12,6 +12,7 @@ doctest = false
 pyo3 = "0.22.5"
 bincode = "*"
 memmap = "*"
+fxhash = "*"
 
 [dependencies.serde]
 features = ["rc"]

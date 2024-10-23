@@ -12,6 +12,7 @@ use pyo3::pybacked::PyBackedStr;
 use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
+use sylph::types::SequencesSketch;
 
 // --- GenomeSketch ------------------------------------------------------------
 
@@ -171,10 +172,47 @@ impl From<sylph::types::SequencesSketch> for SequenceSketch {
     }
 }
 
+impl From<sylph::types::SequencesSketchEncode> for SequenceSketch {
+    fn from(sketch: sylph::types::SequencesSketchEncode) -> Self {
+        Self::from(SequencesSketch::from_enc(sketch))
+    }
+}
+
 #[pymethods]
 impl SequenceSketch {
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
         Ok(format!("<SequenceSketch name={:?}>", self.sketch.file_name))
+    }
+
+    /// Load a sequence sketch from a path.
+    #[classmethod]
+    #[pyo3(signature = (path, memmap = true))]
+    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Self> {
+        // FIXME(@althonos): Add support for reading from a file-like object.
+
+        // load file using either memmap or direct read
+        let f = std::fs::File::open(&*path)?;
+        let result: bincode::Result<sylph::types::SequencesSketchEncode> = if memmap {
+            let m = unsafe { memmap::Mmap::map(&f)? };
+            bincode::deserialize(&m)
+        } else {
+            let reader = std::io::BufReader::new(f);
+            bincode::deserialize_from(reader)
+        };
+
+        // hadnle error
+        match result {
+            Ok(sketches) => Ok(Self::from(sketches)),
+            Err(e) => {
+                match *e {
+                    bincode::ErrorKind::Io(io) => Err(io.into()),
+                    bincode::ErrorKind::InvalidUtf8Encoding(e) => Err(e.into()),
+                    other => {
+                        Err(PyValueError::new_err(format!("failed to load db: {:?}", other)))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -223,62 +261,139 @@ pub struct GenomeSketcher {
 impl GenomeSketcher {
     #[new]
     #[pyo3(signature = (c = 200, k = 31))]
-    pub fn __new__(c: usize, k: usize) -> PyResult<GenomeSketcher> {
-        Ok(GenomeSketcher { c, k, min_spacing: 30 })
+    pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
+        Ok(Self { c, k, min_spacing: 30 })
     }
 
     #[pyo3(signature = (name, sequence, *sequences))]
-    fn sketch<'py>(&self, name: String, sequence: Bound<'py, PyAny>, sequences: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
+    fn sketch<'py>(slf: PyRef<'py, Self>, name: String, sequence: Bound<'py, PyAny>, sequences: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
+        let py = slf.py();
+        
         let mut gsketch = sylph::types::GenomeSketch::default();
-        gsketch.min_spacing = self.min_spacing;
-        gsketch.c = self.c;
-        gsketch.k = self.k;
+        gsketch.min_spacing = slf.min_spacing;
+        gsketch.c = slf.c;
+        gsketch.k = slf.k;
         gsketch.file_name = name;
 
-        // extract candidate kmers
-        let mut markers = Vec::new();
-        for (contig_index, sequence) in [sequence].into_iter().chain(sequences.iter()).enumerate() {
-            let s = PyBackedStr::extract_bound(&sequence)?;
-            sylph::sketch::extract_markers_positions(
-                s.as_bytes(),
-                &mut markers,
-                self.c,
-                self.k,
-                contig_index,
-            );
-            gsketch.gn_size += s.as_bytes().len();
-        }
+        // get records
+        let records = [sequence].into_iter().chain(sequences.iter())
+            .enumerate()
+            .map(|(i, seq)| PyBackedStr::extract_bound(&seq).map(|x| (i, x)))
+            .collect::<PyResult<Vec<_>>>()?;
 
-        // split duplicate / unique kmers
-        let mut kmer_set = sylph::types::MMHashSet::default();
-        let mut duplicate_set = sylph::types::MMHashSet::default();
-        markers.sort(); // NB(@althonos): is this necessary here?
-        for (_, _, km) in markers.iter() {
-            if !kmer_set.insert(km) {
-                duplicate_set.insert(km);
+        py.allow_threads(|| {
+            // extract candidate kmers
+            let mut markers = Vec::new();
+            for (contig_index, sequence) in records {
+                sylph::sketch::extract_markers_positions(
+                    sequence.as_bytes(),
+                    &mut markers,
+                    gsketch.c,
+                    gsketch.k,
+                    contig_index,
+                );
+                gsketch.gn_size += sequence.as_bytes().len();
             }
-        }
-        
-        //
-        let mut last_pos = 0;
-        let mut last_contig = 0;
-        for &(contig, pos, km) in markers.iter() {
-            if !duplicate_set.contains(&km) {
-                if last_pos == 0 || last_contig != contig || pos > self.min_spacing + last_pos {
-                    gsketch.genome_kmers.push(km);
-                    last_contig = contig;
-                    last_pos = pos;
+
+            // split duplicate / unique kmers
+            let mut kmer_set = sylph::types::MMHashSet::default();
+            let mut duplicate_set = sylph::types::MMHashSet::default();
+            markers.sort(); // NB(@althonos): is this necessary here?
+            for (_, _, km) in markers.iter() {
+                if !kmer_set.insert(km) {
+                    duplicate_set.insert(km);
                 }
-                //  else if pseudotax {
-                //     pseudotax_track_kmers.push(*km);
-                // }
             }
-        }
 
-        //
+            //
+            let mut last_pos = 0;
+            let mut last_contig = 0;
+            for &(contig, pos, km) in markers.iter() {
+                if !duplicate_set.contains(&km) {
+                    if last_pos == 0 || last_contig != contig || pos > gsketch.min_spacing + last_pos {
+                        gsketch.genome_kmers.push(km);
+                        last_contig = contig;
+                        last_pos = pos;
+                    }
+                    //  else if pseudotax {
+                    //     pseudotax_track_kmers.push(*km);
+                    // }
+                }
+            }
+        });
+
         Ok(GenomeSketch::from(gsketch))
     }
 }
+
+
+#[pyclass]
+pub struct SequenceSketcher {
+    c: usize,
+    k: usize,
+    min_spacing: usize,
+}
+
+#[pymethods]
+impl SequenceSketcher {
+    #[new]
+    #[pyo3(signature = (c = 200, k = 31))]
+    pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
+        Ok(Self { c, k, min_spacing: 30 })
+    }
+
+    #[pyo3(signature = (name, reads))]
+    fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SequenceSketch> {
+        
+        let mut kmer_map = std::collections::HashMap::default();
+        // let ref_file = &read_file;
+        // let reader = parse_fastx_file(&ref_file);
+        let mut mean_read_length = 0.;
+        let mut counter = 0usize;
+        let mut kmer_to_pair_table = fxhash::FxHashSet::default();
+        let mut num_dup_removed = 0;
+
+        for result in reads.iter()? {
+            let read: PyBackedStr = result?.extract()?;
+            let seq = read.as_bytes();
+
+            let mut vec = vec![];
+            let kmer_pair = if seq.len() > 0 {
+                None
+            } else {
+                sylph::sketch::pair_kmer_single(seq)
+            };
+            sylph::sketch::extract_markers(&seq, &mut vec, self.c, self.k);
+            for km in vec {
+                sylph::sketch::dup_removal_lsh_full_exact(
+                    &mut kmer_map,
+                    &mut kmer_to_pair_table,
+                    &km,
+                    kmer_pair,
+                    &mut num_dup_removed,
+                    false, //no_dedup,
+                    Some(sylph::constants::MAX_DEDUP_COUNT),
+                );
+            }
+            //moving average
+            counter += 1;
+            mean_read_length += ((seq.len() as f64) - mean_read_length) / counter as f64;
+        }
+
+        let sketch = sylph::types::SequencesSketch {
+            kmer_counts: kmer_map,
+            file_name: name,
+            c: self.c,
+            k: self.k,
+            paired: false,
+            sample_name: None,
+            mean_read_length,
+        };
+
+        Ok(SequenceSketch::from(sketch))
+    }
+}
+
 
 // --- Functions ---------------------------------------------------------------
 
@@ -409,6 +524,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
 
     m.add_class::<GenomeSketcher>()?;
+    m.add_class::<SequenceSketcher>()?;
     m.add_class::<Database>()?;
 
     m.add_class::<GenomeSketch>()?;
