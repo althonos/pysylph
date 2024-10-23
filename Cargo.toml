@@ -13,6 +13,10 @@ pyo3 = "0.22.5"
 bincode = "*"
 memmap = "*"
 
+[dependencies.serde]
+features = ["rc"]
+version = "1.0"
+
 [dependencies.sylph]
 # version = "0.6.1"
 # git = "https://github.com/bluenote-1577/sylph"

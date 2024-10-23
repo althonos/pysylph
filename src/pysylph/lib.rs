@@ -3,7 +3,6 @@ extern crate pyo3;
 extern crate sylph;
 extern crate memmap;
 
-use std::result;
 use std::sync::Arc;
 
 use pyo3::exceptions::PyValueError;
@@ -12,6 +11,7 @@ use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedStr;
 use pyo3::types::PyTuple;
 use pyo3::types::PyList;
+use pyo3::types::PyType;
 
 // --- GenomeSketch ------------------------------------------------------------
 
@@ -116,8 +116,46 @@ impl Database {
             Ok(GenomeSketch::from(slf.sketches[item_ as usize].clone()))
         }
     }
-}
 
+    /// Load a database from a path.
+    #[classmethod]
+    #[pyo3(signature = (path, memmap = true))]
+    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Self> {
+        // FIXME(@althonos): Add support for reading from a file-like object.
+
+        // load file using either memmap or direct read
+        let f = std::fs::File::open(&*path)?;
+        let result: bincode::Result<Vec<Arc<sylph::types::GenomeSketch>>> = if memmap {
+            let m = unsafe { memmap::Mmap::map(&f)? };
+            bincode::deserialize(&m)
+        } else {
+            let reader = std::io::BufReader::new(f);
+            bincode::deserialize_from(reader)
+        };
+
+        // hadnle error
+        match result {
+            Ok(sketches) => Ok(Database::from(sketches)),
+            Err(e) => {
+                match *e {
+                    bincode::ErrorKind::Io(io) => Err(io.into()),
+                    bincode::ErrorKind::InvalidUtf8Encoding(e) => Err(e.into()),
+                    other => {
+                        Err(PyValueError::new_err(format!("failed to load db: {:?}", other)))
+                    }
+                }
+            }
+        }
+    }
+
+    /// Dump a database to a path.
+    fn dump<'py>(slf: PyRef<'py, Self>, path: PyBackedStr) -> PyResult<()> {
+        let f = std::fs::File::create(&*path)?;
+
+        bincode::serialize_into(f, &slf.sketches).unwrap();
+        Ok(())
+    }
+}
 
 // --- SequenceSketch ----------------------------------------------------------
 
