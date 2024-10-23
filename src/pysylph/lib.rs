@@ -3,7 +3,11 @@ extern crate pyo3;
 extern crate sylph;
 extern crate memmap;
 
+use std::result;
+use std::sync::Arc;
+
 use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedStr;
 use pyo3::types::PyTuple;
@@ -14,12 +18,20 @@ use pyo3::types::PyList;
 /// A (reference) genome sketch.
 #[pyclass(module = "pysylph.lib", frozen)]
 pub struct GenomeSketch {
-    sketch: sylph::types::GenomeSketch,
+    sketch: Arc<sylph::types::GenomeSketch>,
+}
+
+impl From<Arc<sylph::types::GenomeSketch>> for GenomeSketch {
+    fn from(sketch: Arc<sylph::types::GenomeSketch>) -> Self {
+        Self { 
+            sketch
+        }
+    }
 }
 
 impl From<sylph::types::GenomeSketch> for GenomeSketch {
     fn from(sketch: sylph::types::GenomeSketch) -> Self {
-        Self { sketch }
+        Self::from(Arc::new(sketch))
     }
 }
 
@@ -50,6 +62,63 @@ impl GenomeSketch {
     }
 }
 
+// --- Database ----------------------------------------------------------------
+
+#[pyclass(module = "pysylph.lib", frozen)]
+#[derive(Debug, Default)]
+pub struct Database {
+    sketches: Vec<Arc<sylph::types::GenomeSketch>>,
+}
+
+impl From<Vec<Arc<sylph::types::GenomeSketch>>> for Database {
+    fn from(sketches: Vec<Arc<sylph::types::GenomeSketch>>) -> Self {
+        Self { sketches }
+    }
+}
+
+impl FromIterator<sylph::types::GenomeSketch> for Database {
+    fn from_iter<T: IntoIterator<Item = sylph::types::GenomeSketch>>(iter: T) -> Self {
+        let it = iter.into_iter();
+        let sketches = it.map(Arc::new).collect::<Vec<_>>();
+        Self::from(sketches)
+    }
+}
+
+#[pymethods]
+impl Database {
+    #[new]
+    #[pyo3(signature = (items = None))]
+    pub fn __new__<'py>(items: Option<Bound<'py, PyAny>>) -> PyResult<Self> {
+        let mut db = Self::default();
+        if let Some(sketches) = items {
+            for object in sketches.iter()? {
+                let sketch: PyRef<'py, GenomeSketch> = object?.extract()?;
+                db.sketches.push(sketch.sketch.clone());
+            }
+        }
+        Ok(db)
+    }
+
+    pub fn __len__<'py>(slf: PyRef<'py, Self>) -> usize {
+        slf.sketches.len()
+    }
+
+    pub fn __getitem__<'py>(slf: PyRef<'py, Self>, item: isize) -> PyResult<GenomeSketch> {
+
+        let mut item_ = item;
+        if item_ < 0 {
+            item_ += slf.sketches.len() as isize;
+        }
+
+        if item_ < 0 || item_ >= slf.sketches.len() as isize {
+            Err(PyIndexError::new_err(item))
+        } else {
+            Ok(GenomeSketch::from(slf.sketches[item_ as usize].clone()))
+        }
+    }
+}
+
+
 // --- SequenceSketch ----------------------------------------------------------
 
 /// A (query) sequence sketch .
@@ -77,14 +146,29 @@ impl SequenceSketch {
 #[pyclass(module = "pysylph.lib", frozen)]
 pub struct AniResult {
     result: sylph::types::AniResult<'static>,
-    genome: Py<GenomeSketch>,
+    genome: Arc<sylph::types::GenomeSketch>,
 }
 
 #[pymethods]
 impl AniResult {
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
-        Ok(format!("<AniResult {:?}>", self.result))
+        Ok(format!("<AniResult genome={:?} ani={:?}>", self.genome.file_name, self.result.final_est_ani))
     }
+
+    #[getter]
+    fn ani<'py>(slf: PyRef<'py, Self>) -> f64 {
+        f64::min(slf.result.final_est_ani, 1.0)
+    }
+
+    #[getter]
+    fn ani_naive<'py>(slf: PyRef<'py, Self>) -> f64 {
+        slf.result.naive_ani
+    }
+
+    #[getter]
+    fn coverage<'py>(slf: PyRef<'py, Self>) -> f64 {
+        slf.result.final_est_cov
+    } 
 }
 
 // --- Sketcher ----------------------------------------------------------------
@@ -161,7 +245,7 @@ impl GenomeSketcher {
 // --- Functions ---------------------------------------------------------------
 
 #[pyfunction]
-pub fn load_syldb(file: &str) -> PyResult<Vec<GenomeSketch>> {
+pub fn load_syldb(file: &str) -> PyResult<Database> {
     let f = std::fs::File::open(file)
         .unwrap();
     let m = unsafe {
@@ -169,7 +253,7 @@ pub fn load_syldb(file: &str) -> PyResult<Vec<GenomeSketch>> {
     };
     let result: Vec<sylph::types::GenomeSketch> = bincode::deserialize(&m)
         .map_err(|e| PyValueError::new_err(format!("failed to load db: {:?}", e)))?;
-    Ok(result.into_iter().map(GenomeSketch::from).collect())
+    Ok(Database::from_iter(result.into_iter()))
 }
 
 #[pyfunction]
@@ -185,8 +269,14 @@ pub fn load_sylsp(file: &str) -> PyResult<SequenceSketch> {
 }
 
 #[pyfunction]
-fn query<'py>(gs: PyRef<'py, GenomeSketch>, ss: PyRef<'py, SequenceSketch>) -> PyResult<()> {
-    let py = gs.py();
+#[pyo3(signature = (sample, database, seq_id = None, estimate_unknown = false))]
+fn query<'py>(
+    sample: PyRef<'py, SequenceSketch>, 
+    database: PyRef<'py, Database>, 
+    seq_id: Option<f64>,
+    estimate_unknown: bool,
+) -> PyResult<Vec<AniResult>> {
+    let py = sample.py();
 
     let args = sylph::cmdline::ContainArgs {
         files: Default::default(),
@@ -204,7 +294,6 @@ fn query<'py>(gs: PyRef<'py, GenomeSketch>, ss: PyRef<'py, SequenceSketch>) -> P
         first_pair: Default::default(),
         second_pair: Default::default(),
         c: 200,    
-
         k: 31,
         individual: false,
         min_spacing_kmer: 30,
@@ -220,71 +309,54 @@ fn query<'py>(gs: PyRef<'py, GenomeSketch>, ss: PyRef<'py, SequenceSketch>) -> P
         mean_coverage: false,
     };
 
+    // estimate sample kmer identity
+    let kmer_id_opt = if let Some(x) = seq_id {
+        Some(x.powf(sample.sketch.k as f64))
+    } else {
+        sylph::contain::get_kmer_identity(&sample.sketch, estimate_unknown)
+    };
 
-    let res = sylph::contain::get_stats(
-        &args, 
-        &gs.sketch, 
-        &ss.sketch, 
-        None,
-        false,
-    ).expect("nope");
-
-    // let r2 = unsafe { std::mem::transmute(res)};
-
-    // Ok(AniResult {
-    //     result: r2,
-    //     genome: gs.into()
-    // })
-
-    {
-        let print_final_ani = format!("{:.2}", f64::min(res.final_est_ani * 100., 100.));
-        let lambda_print = match res.lambda {
-            sylph::types::AdjustStatus::Lambda(l) => format!("{:.3}", l),
-            sylph::types::AdjustStatus::High => format!("HIGH"),
-            sylph::types::AdjustStatus::Low => format!("LOW"),
-        };
-       
-        let low_ani = res.ani_ci.0;
-        let high_ani = res.ani_ci.1;
-        let low_lambda = res.lambda_ci.0;
-        let high_lambda = res.lambda_ci.1;
-
-        let ci_ani;
-        if low_ani.is_none() || high_ani.is_none() {
-            ci_ani = "NA-NA".to_string();
-        } else {
-            ci_ani = format!(
-                "{:.2}-{:.2}",
-                low_ani.unwrap() * 100.,
-                high_ani.unwrap() * 100.
-            );
+    // extract all matching kmers
+    let mut stats = Vec::new();
+    for sketch in &database.sketches {
+        if let Some(res) = sylph::contain::get_stats(
+            &args, 
+            &sketch, 
+            &sample.sketch, 
+            None,
+            false,
+        ) {
+            stats.push(res);
         }
-
-        let ci_lambda;
-        if low_lambda.is_none() || high_lambda.is_none() {
-            ci_lambda = "NA-NA".to_string();
-        } else {
-            ci_lambda = format!("{:.2}-{:.2}", low_lambda.unwrap(), high_lambda.unwrap());
-        }
-        println!(
-            "{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{:.0}\t{:.3}\t{}/{}\t{:.2}\t{}",
-            res.seq_name,
-            res.gn_name,
-            print_final_ani,
-            res.final_est_cov,
-            ci_ani,
-            lambda_print,
-            ci_lambda,
-            res.median_cov,
-            res.mean_cov,
-            res.containment_index.0,
-            res.containment_index.1,
-            res.naive_ani * 100.,
-            res.contig_name,
-        );
     }
 
-    Ok(())
+    // estimate true coverage
+    sylph::contain::estimate_true_cov(
+        &mut stats, 
+        kmer_id_opt, 
+        estimate_unknown, 
+        sample.sketch.mean_read_length, 
+        sample.sketch.k
+    );
+
+    // sort by ANI
+    // if pseudotax {} else {
+    stats.sort_by(|x,y| y.final_est_ani.partial_cmp(&x.final_est_ani).unwrap());
+    // }
+
+    // Ok(())
+    Ok(stats.into_iter()
+        .map(|r| {
+            let sketch = database.sketches.iter()
+                .find(|x| r.genome_sketch.file_name == x.file_name )
+                .unwrap();
+            AniResult {
+                result: unsafe { std::mem::transmute(r) },
+                genome: sketch.clone(),
+            }
+
+        })
+        .collect())
 }
 
 
@@ -299,6 +371,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
 
     m.add_class::<GenomeSketcher>()?;
+    m.add_class::<Database>()?;
 
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SequenceSketch>()?;
