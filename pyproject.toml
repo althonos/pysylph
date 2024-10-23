@@ -1,0 +1,74 @@
+[build-system]
+requires = ["maturin ~=1.2"]
+build-backend = "maturin"
+
+[project]
+name = "pysylph"
+dynamic = ["version"]
+# version = "0.1.1"
+description = "Python bindings to sylph, an ultrafast taxonomic profiler."
+readme = 'README.md'
+requires-python = ">=3.7"
+license = { file = "COPYING" }
+authors = [
+  { name = "Martin Larralde", email = "martin.larralde@embl.de" },
+]
+keywords = ["bioinformatics", "genomics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    # "Typing :: Typed"
+]
+
+[project.urls]
+# "Documentation" = "https://pysylph.readthedocs.io"
+# "Bug Tracker" = "https://github.com/althonos/pysylph/issues"
+# "Changelog" = "https://github.com/althonos/pysylph/blob/master/CHANGELOG.md"
+# "Coverage" = "https://codecov.io/gh/althonos/pysylph/"
+# "Builds" = "https://github.com/althonos/pysylph/actions/"
+# "PyPI" = "https://pypi.org/project/pysylph"
+
+[tool.maturin]
+# manifest-path = "pysylph/Cargo.toml"
+features = ["extension-module"]
+python-source = "src"
+module-name = "pysylph.lib"
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if typing.TYPE_CHECKING:",
+    "@abc.abstractmethod",
+    "@abc.abstractproperty",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "raise UnexpectedError",
+    "raise AllocationError",
+]
+
+[tool.mypy]
+disallow_any_decorated = true
+disallow_any_generics = true
+disallow_any_unimported = false
+disallow_subclassing_any = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = true

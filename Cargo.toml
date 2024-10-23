@@ -1,0 +1,24 @@
+[package]
+name = "pysylph"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/pysylph/lib.rs"
+doctest = false
+
+[dependencies]
+pyo3 = "0.22.5"
+bincode = "*"
+memmap = "*"
+
+[dependencies.sylph]
+# version = "0.6.1"
+# git = "https://github.com/bluenote-1577/sylph"
+# tag = "v0.6.1"
+path = "vendor/sylph"
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
