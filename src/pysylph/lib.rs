@@ -268,8 +268,8 @@ impl Sketcher {
         Ok(Self { c, k, min_spacing: 30 })
     }
 
-    #[pyo3(signature = (name, sequence, *sequences))]
-    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, sequence: Bound<'py, PyAny>, sequences: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
+    #[pyo3(signature = (name, contigs))]
+    fn sketch_genome<'py>(slf: PyRef<'py, Self>, name: String, contigs: Bound<'py, PyTuple>) -> PyResult<GenomeSketch> {
         let py = slf.py();
         
         let mut gsketch = sylph::types::GenomeSketch::default();
@@ -278,22 +278,23 @@ impl Sketcher {
         gsketch.k = slf.k;
         gsketch.file_name = name;
 
-        // get records
-        let records = [sequence].into_iter().chain(sequences.iter())
-            .enumerate()
-            .map(|(i, seq)| PyBackedStr::extract_bound(&seq).map(|x| (i, x)))
+        // extract records
+        let sequences = contigs
+            .iter()
+            .map(|s| PyBackedStr::extract_bound(&s))
             .collect::<PyResult<Vec<_>>>()?;
 
+        // sketch all records while allowing parallel code
         py.allow_threads(|| {
             // extract candidate kmers
             let mut markers = Vec::new();
-            for (contig_index, sequence) in records {
+            for (index, sequence) in sequences.iter().enumerate() {
                 sylph::sketch::extract_markers_positions(
                     sequence.as_bytes(),
                     &mut markers,
                     gsketch.c,
                     gsketch.k,
-                    contig_index,
+                    index,
                 );
                 gsketch.gn_size += sequence.as_bytes().len();
             }
@@ -330,7 +331,6 @@ impl Sketcher {
 
     #[pyo3(signature = (name, reads))]
     fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SequenceSketch> {
-        
         let mut kmer_map = std::collections::HashMap::default();
         // let ref_file = &read_file;
         // let reader = parse_fastx_file(&ref_file);
