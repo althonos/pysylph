@@ -15,6 +15,7 @@ memmap = "*"
 fxhash = "*"
 statrs = "*"
 fastrand = "*"
+rayon = "1"
 
 [dependencies.serde]
 features = ["rc"]

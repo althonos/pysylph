@@ -13,6 +13,7 @@ use pyo3::pybacked::PyBackedStr;
 use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
+use rayon::prelude::*;
 use sylph::types::SequencesSketch;
 
 mod exports;
@@ -541,18 +542,18 @@ fn profile<'py>(
     };
 
     // extract all matching kmers
-    let mut stats = Vec::new();
-    for sketch in &database.sketches {
-        if let Some(res) = self::exports::contain::get_stats(
-            &args, 
-            &sketch, 
-            &sample.sketch, 
-            None,
-            false,
-        ) {
-            stats.push(res);
-        }
-    }
+    let sample_sketch = &sample.sketch;
+    let mut stats = (&database.sketches).par_iter()
+        .flat_map_iter(|sketch|
+            self::exports::contain::get_stats(
+                &args, 
+                &sketch, 
+                &sample_sketch, 
+                None,
+                false,
+            )
+        )
+        .collect::<Vec<_>>();
 
     // estimate true coverage
     self::exports::contain::estimate_true_cov(

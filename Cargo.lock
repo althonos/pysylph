@@ -659,6 +659,7 @@ dependencies = [
  "fxhash",
  "memmap",
  "pyo3",
+ "rayon",
  "serde",
  "statrs",
  "sylph",
