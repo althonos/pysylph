@@ -391,30 +391,6 @@ impl Sketcher {
 // --- Functions ---------------------------------------------------------------
 
 #[pyfunction]
-pub fn load_syldb(file: &str) -> PyResult<Database> {
-    let f = std::fs::File::open(file)
-        .unwrap();
-    let m = unsafe {
-        memmap::Mmap::map(&f).expect("failed to memmap")
-    };
-    let result: Vec<sylph::types::GenomeSketch> = bincode::deserialize(&m)
-        .map_err(|e| PyValueError::new_err(format!("failed to load db: {:?}", e)))?;
-    Ok(Database::from_iter(result.into_iter()))
-}
-
-#[pyfunction]
-pub fn load_sylsp(file: &str) -> PyResult<SequenceSketch> {
-    let f = std::fs::File::open(file)
-        .unwrap();
-    let m = unsafe {
-        memmap::Mmap::map(&f).expect("failed to memmap")
-    };
-    let result: sylph::types::SequencesSketchEncode = bincode::deserialize(&m)
-        .map_err(|e| PyValueError::new_err(format!("failed to load query: {:?}", e)))?;
-    Ok(sylph::types::SequencesSketch::from_enc(result).into())
-}
-
-#[pyfunction]
 #[pyo3(signature = (sample, database, seq_id = None, estimate_unknown = false))]
 fn query<'py>(
     sample: PyRef<'py, SequenceSketch>, 
@@ -522,8 +498,6 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SequenceSketch>()?;
 
-    m.add_function(wrap_pyfunction!(load_syldb, &m)?)?;
-    m.add_function(wrap_pyfunction!(load_sylsp, &m)?)?;
     m.add_function(wrap_pyfunction!(query, &m)?)?;
 
     Ok(())
