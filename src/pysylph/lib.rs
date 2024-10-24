@@ -9,6 +9,7 @@ use std::io::Read;
 
 use bincode::de::read::IoReader;
 use bincode::DefaultOptions;
+use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::exceptions::PyIndexError;
@@ -23,10 +24,30 @@ use sylph::types::SequencesSketch;
 
 mod exports;
 
+// --- Base --------------------------------------------------------------------
+
+#[pyclass(module = "pysylph.lib", frozen, subclass)]
+pub struct Sketch {}
+
+#[pymethods]
+impl Sketch {
+    /// `int`: The subsampling rate this sketch was built with.
+    #[getter]
+    pub fn c(&self) -> PyResult<usize> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+
+    /// `int`: The k-mer size this sketch was built with.
+    #[getter]
+    pub fn k(&self) -> PyResult<usize> {
+        Err(PyNotImplementedError::new_err("not implemented"))
+    }
+}
+
 // --- GenomeSketch ------------------------------------------------------------
 
 /// A (reference) genome sketch.
-#[pyclass(module = "pysylph.lib", frozen)]
+#[pyclass(module = "pysylph.lib", frozen, extends=Sketch)]
 pub struct GenomeSketch {
     sketch: Arc<sylph::types::GenomeSketch>,
 }
@@ -45,27 +66,55 @@ impl From<sylph::types::GenomeSketch> for GenomeSketch {
     }
 }
 
+impl From<GenomeSketch> for PyClassInitializer<GenomeSketch> {
+    fn from(value: GenomeSketch) -> Self {
+        PyClassInitializer::new(value, PyClassInitializer::from(Sketch {}))
+    }
+}
+
 #[pymethods]
 impl GenomeSketch {
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
         Ok(format!("<GenomeSketch name={:?}>", self.sketch.file_name))
     }
 
+    /// `str`: The name of the genome this sketch originates from.
+    #[getter]
+    pub fn name(&self) -> &str {
+        &self.sketch.file_name
+    }
+
+    /// `str`: The description of the genome this sketch originates from.
+    #[getter]
+    pub fn description(&self) -> &str {
+        &self.sketch.first_contig_name
+    }
+
+    /// `int`: The total number of nucleotides in the genome.
     #[getter]
     pub fn genome_size(&self) -> usize {
         self.sketch.gn_size
     }
 
+    /// `int`: The subsampling rate this sketch was built with.
     #[getter]
     pub fn c(&self) -> usize {
         self.sketch.c
     }
 
+    /// `int`: The k-mer size this sketch was built with.
     #[getter]
     pub fn k(&self) -> usize {
         self.sketch.k
     }
 
+    /// `int`: The minimum spacing between k-mers used when sketching.
+    #[getter]
+    pub fn min_spacing(&self) -> usize {
+        self.sketch.min_spacing
+    }
+
+    /// `list` of `int`: The list of k-mers extracted from the genome.
     #[getter]
     pub fn kmers<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
         PyList::new_bound(py, &self.sketch.genome_kmers)
@@ -74,6 +123,11 @@ impl GenomeSketch {
 
 // --- Database ----------------------------------------------------------------
 
+/// A sketch database.
+/// 
+/// Sylph databases are simply a sequence of `GenomeSketch` concatenated 
+/// together to be used for fast profiling or querying.
+/// 
 #[pyclass(module = "pysylph.lib", frozen)]
 #[derive(Debug, Default)]
 pub struct Database {
@@ -113,8 +167,8 @@ impl Database {
         slf.sketches.len()
     }
 
-    pub fn __getitem__<'py>(slf: PyRef<'py, Self>, item: isize) -> PyResult<GenomeSketch> {
-
+    pub fn __getitem__<'py>(slf: PyRef<'py, Self>, item: isize) -> PyResult<Py<GenomeSketch>> {
+        let py = slf.py();
         let mut item_ = item;
         if item_ < 0 {
             item_ += slf.sketches.len() as isize;
@@ -123,11 +177,24 @@ impl Database {
         if item_ < 0 || item_ >= slf.sketches.len() as isize {
             Err(PyIndexError::new_err(item))
         } else {
-            Ok(GenomeSketch::from(slf.sketches[item_ as usize].clone()))
+            Py::new(py, GenomeSketch::from(slf.sketches[item_ as usize].clone()))
         }
     }
 
     /// Load a database from a path.
+    /// 
+    /// Arguments:
+    ///     file (`str`, `os.PathLike`): The path to the file containing the
+    ///         database.
+    ///     memmap (`bool`): Set to `False` to disable the use of memory
+    ///         mapping while loading the database. This may degrade 
+    ///         performance. 
+    /// 
+    /// Example:
+    ///     >>> db = pysylph.Database.load("ecoli.syldb")
+    ///     >>> db[0].name
+    ///     'test_files/e.coli-K12.fasta.gz'
+    /// 
     #[classmethod]
     #[pyo3(signature = (path, memmap = true))]
     fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Self> {
@@ -220,31 +287,27 @@ impl DatabaseFile {
         slf
     }
 
-    fn __next__(&mut self) -> PyResult<Option<GenomeSketch>> {
+    fn __next__(&mut self) -> PyResult<Option<Py<GenomeSketch>>> {
+        let py = unsafe { Python::assume_gil_acquired() };
         match self.reader.next() {
             Some(Err(e)) => Err(PyRuntimeError::new_err(e.to_string())),
             None => Ok(None),
-            Some(Ok(item)) => Ok(Some(GenomeSketch::from(item)))
+            Some(Ok(item)) => Some(Py::new(py, GenomeSketch::from(item))).transpose()
         }
     }
 
-    fn read_all(&mut self) -> Database {
-        // let mut db = Database::from(Vec::with_capacity(self.reader.length));
-        // for sketch in &mut self.reader {
-        //     db.sketches.push(Arc::new(sketch.unwrap()));
-        // }
-        let vec = Vec::<Arc<sylph::types::GenomeSketch>>::deserialize(&mut self.reader.reader).unwrap();
-        Database::from(vec)
-    }
+    // fn read_all(&mut self) -> Database {
+    //     let mut db = Database::from(Vec::with_capacity(self.reader.length));
+    //     for sketch in &mut self.reader {
+    //         db.sketches.push(Arc::new(sketch.unwrap()));
+    //     }
+    //     let vec = Vec::<Arc<sylph::types::GenomeSketch>>::deserialize(&mut self.reader.reader).unwrap();
+    //     Database::from(vec)
+    // }
 
     // fn read(&mut self) -> GenomeSketch {
-
     //     use serde::de::Deserialize;
-
-        
     //     let l: usize = serde::Deserialize::deserialize(&mut d).unwrap();
-
-
     //     // println!("{:?}", d);
     //     unimplemented!()
     // }
@@ -252,8 +315,8 @@ impl DatabaseFile {
 
 // --- SampleSketch ----------------------------------------------------------
 
-/// A (query) sequence sketch .
-#[pyclass(module = "pysylph.lib", frozen)]
+/// A (query) sample sketch.
+#[pyclass(module = "pysylph.lib", frozen, extends=Sketch)]
 pub struct SampleSketch {
     sketch: sylph::types::SequencesSketch,
 }
@@ -270,6 +333,12 @@ impl From<sylph::types::SequencesSketchEncode> for SampleSketch {
     }
 }
 
+impl From<SampleSketch> for PyClassInitializer<SampleSketch> {
+    fn from(value: SampleSketch) -> Self {
+        PyClassInitializer::new(value, PyClassInitializer::from(Sketch {}))
+    }
+}
+
 #[pymethods]
 impl SampleSketch {
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
@@ -279,7 +348,9 @@ impl SampleSketch {
     /// Load a sequence sketch from a path.
     #[classmethod]
     #[pyo3(signature = (path, memmap = true))]
-    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Self> {
+    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Py<Self>> {
+        let py = cls.py();
+        
         // FIXME(@althonos): Add support for reading from a file-like object.
 
         // load file using either memmap or direct read
@@ -294,7 +365,7 @@ impl SampleSketch {
 
         // handle error
         match result {
-            Ok(sketches) => Ok(Self::from(sketches)),
+            Ok(sketches) => Py::new(py, Self::from(sketches)),
             Err(e) => {
                 match *e {
                     bincode::ErrorKind::Io(io) => Err(io.into()),
@@ -374,7 +445,7 @@ impl Sketcher {
         name: String, 
         contigs: Bound<'py, PyAny>,
         pseudotax: bool,
-    ) -> PyResult<GenomeSketch> {
+    ) -> PyResult<Py<GenomeSketch>> {
         let py = slf.py();
         
         let mut gsketch = sylph::types::GenomeSketch::default();
@@ -434,11 +505,17 @@ impl Sketcher {
             }
         });
 
-        Ok(GenomeSketch::from(gsketch))
+        Py::new(py, GenomeSketch::from(gsketch))
     }
 
     #[pyo3(signature = (name, reads))]
-    fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SampleSketch> {
+    fn sketch_single<'py>(
+        slf: PyRef<'py, Self>, 
+        name: String, 
+        reads: Bound<'py, PyAny>
+    ) -> PyResult<Py<SampleSketch>> {
+        let py = slf.py();
+
         let mut kmer_map = std::collections::HashMap::default();
         // let ref_file = &read_file;
         // let reader = parse_fastx_file(&ref_file);
@@ -457,7 +534,7 @@ impl Sketcher {
             } else {
                 self::exports::sketch::pair_kmer_single(seq)
             };
-            sylph::sketch::extract_markers(&seq, &mut vec, self.c, self.k);
+            sylph::sketch::extract_markers(&seq, &mut vec, slf.c, slf.k);
             for km in vec {
                 self::exports::sketch::dup_removal_lsh_full_exact(
                     &mut kmer_map,
@@ -477,14 +554,14 @@ impl Sketcher {
         let sketch = sylph::types::SequencesSketch {
             kmer_counts: kmer_map,
             file_name: name,
-            c: self.c,
-            k: self.k,
+            c: slf.c,
+            k: slf.k,
             paired: false,
             sample_name: None,
             mean_read_length,
         };
 
-        Ok(SampleSketch::from(sketch))
+        Py::new(py, SampleSketch::from(sketch))
     }
 }
 
@@ -711,6 +788,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Database>()?;
     m.add_class::<DatabaseFile>()?;
 
+    m.add_class::<Sketch>()?;
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SampleSketch>()?;
     m.add_class::<AniResult>()?;
