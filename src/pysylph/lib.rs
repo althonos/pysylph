@@ -416,12 +416,12 @@ impl AniResult {
 
     #[getter]
     fn ani<'py>(slf: PyRef<'py, Self>) -> f64 {
-        f64::min(slf.result.final_est_ani, 1.0)
+        f64::min(slf.result.final_est_ani * 100.0, 100.0)
     }
 
     #[getter]
     fn ani_naive<'py>(slf: PyRef<'py, Self>) -> f64 {
-        slf.result.naive_ani
+        slf.result.naive_ani * 100.0
     }
 
     #[getter]
