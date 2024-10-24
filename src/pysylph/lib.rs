@@ -4,24 +4,20 @@ extern crate sylph;
 extern crate memmap;
 extern crate statrs;
 
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::io::Read;
 
 use bincode::de::read::IoReader;
-use bincode::DefaultOptions;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedStr;
-use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
 use pyo3::types::PyString;
 use rayon::prelude::*;
-use serde::Deserialize;
 use sylph::types::SequencesSketch;
 
 mod exports;
@@ -77,8 +73,8 @@ impl From<GenomeSketch> for PyClassInitializer<GenomeSketch> {
 
 #[pymethods]
 impl GenomeSketch {
-    pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
-        Ok(format!("<GenomeSketch name={:?}>", self.sketch.file_name))
+    pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        Ok(format!("<GenomeSketch name={:?}>", slf.sketch.file_name))
     }
 
     /// `str`: The name of the genome this sketch originates from.
@@ -243,7 +239,7 @@ struct DatabaseReader<R: Read> {
 }
 
 impl<R: Read> DatabaseReader<R> {
-    fn new(mut r: R) -> Result<Self, bincode::Error> {
+    fn new(r: R) -> Result<Self, bincode::Error> {
         use bincode::Options;
         let mut reader = bincode::de::Deserializer::with_reader(r, bincode::config::DefaultOptions::new().with_fixint_encoding().allow_trailing_bytes());
         let length: usize = serde::Deserialize::deserialize(&mut reader).unwrap_or(0);
@@ -342,8 +338,8 @@ impl From<SampleSketch> for PyClassInitializer<SampleSketch> {
 
 #[pymethods]
 impl SampleSketch {
-    pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
-        Ok(format!("<SampleSketch name={:?}>", self.sketch.file_name))
+    pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        Ok(format!("<SampleSketch name={:?}>", slf.sketch.file_name))
     }
 
     /// `int`: The subsampling rate this sketch was built with.
@@ -409,8 +405,8 @@ pub struct AniResult {
 
 #[pymethods]
 impl AniResult {
-    pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
-        Ok(format!("<AniResult genome={:?} ani={:?}>", self.genome.file_name, self.result.final_est_ani))
+    pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        Ok(format!("<AniResult genome={:?} ani={:?}>", slf.genome.file_name, slf.result.final_est_ani))
     }
 
     #[getter]
@@ -434,7 +430,7 @@ pub struct ProfileResult {}
 
 #[pymethods]
 impl ProfileResult {
-    pub fn __repr__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<String> {
+    pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
         Ok(format!("<ProfileResult genome={:?} ani={:?}>", slf.as_super().genome.file_name, slf.as_super().result.final_est_ani))
     }
 

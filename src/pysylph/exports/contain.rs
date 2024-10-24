@@ -79,7 +79,7 @@ pub fn estimate_covered_bases(results: &Vec<AniResult>, sequence_sketch: &Sequen
     return f64::min(num_covered_bases as f64 / num_tentative_bases, 1.);
 }
 
-pub fn winner_table<'a>(results : &'a Vec<AniResult>, log_reassign: bool) -> FxHashMap<Kmer, (f64,&'a GenomeSketch, bool)> {
+pub fn winner_table<'a>(results : &'a Vec<AniResult>, _log_reassign: bool) -> FxHashMap<Kmer, (f64,&'a GenomeSketch, bool)> {
     let mut kmer_to_genome_map : FxHashMap<_,_> = FxHashMap::default();
     for res in results.iter(){
         //let gn_sketch = &genome_sketches[res.genome_sketch_index];
