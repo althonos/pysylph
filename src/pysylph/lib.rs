@@ -426,16 +426,29 @@ impl AniResult {
         ))
     }
 
+    /// `~pysylph.GenomeSketch`: A reference to the genome sketch.
+    #[getter]
+    fn genome_sketch<'py>(slf: PyRef<'py, Self>) -> PyResult<Py<GenomeSketch>> {
+        let py = slf.py();
+        Py::new(
+            py,
+            PyClassInitializer::from(Sketch).add_subclass(GenomeSketch::from(slf.genome.clone())),
+        )
+    }
+
+    /// `float`: The coverage-corrected containment ANI, as a percentage.
     #[getter]
     fn ani<'py>(slf: PyRef<'py, Self>) -> f64 {
         f64::min(slf.result.final_est_ani * 100.0, 100.0)
     }
 
+    /// `float`: The containment ANI without adjustment, as a percentage.
     #[getter]
     fn ani_naive<'py>(slf: PyRef<'py, Self>) -> f64 {
         slf.result.naive_ani * 100.0
     }
 
+    /// `float`: An estimate of the effective, or the true coverage.
     #[getter]
     fn coverage<'py>(slf: PyRef<'py, Self>) -> f64 {
         slf.result.final_est_cov
@@ -455,6 +468,10 @@ impl ProfileResult {
         ))
     }
 
+    /// `float`: The normalized sequence abundance, as a percentage.
+    ///
+    /// This is the *percentage of reads* assigned to each genome, similar
+    /// to how Kraken computes abundance.
     #[getter]
     fn sequence_abundance<'py>(slf: PyRef<'py, Self>) -> f64 {
         *slf.as_super()
@@ -464,6 +481,10 @@ impl ProfileResult {
             .expect("ProfileResult should always have a sequence abundance set")
     }
 
+    /// `float`: The normalized taxonomic abundance, as a percentage. Coverage-normalized - same as MetaPhlAn abundance
+    ///
+    /// This is the *coverage-normalized* abundanced, similar to how
+    /// MetaPhlAn computes abundance.
     #[getter]
     fn taxonomic_abundance<'py>(slf: PyRef<'py, Self>) -> f64 {
         *slf.as_super()
@@ -473,6 +494,7 @@ impl ProfileResult {
             .expect("ProfileResult should always have a taxonomic abundance set")
     }
 
+    /// `int`: The number of k-mers reassigned away from the genome.
     #[getter]
     fn kmers_reassigned<'py>(slf: PyRef<'py, Self>) -> usize {
         *slf.as_super()
