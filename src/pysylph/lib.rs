@@ -582,14 +582,22 @@ impl Sketcher {
 /// A ``sylph`` profiler.
 #[pyclass(module = "pysylph.lib", frozen)]
 pub struct Profiler {
-    args: sylph::cmdline::ContainArgs
+    args: sylph::cmdline::ContainArgs,
+    #[pyo3(get)]
+    database: Py<Database>,
 }
 
 #[pymethods]
 impl Profiler {
     #[new]
-    #[pyo3(signature = (*, minimum_ani = None, seq_id = None, estimate_unknown = false, min_number_kmers = 50))]
-    pub fn __new__(minimum_ani: Option<f64>, seq_id: Option<f64>, estimate_unknown: bool, min_number_kmers: usize) -> PyResult<Self> {
+    #[pyo3(signature = (database, *, minimum_ani = None, seq_id = None, estimate_unknown = false, min_number_kmers = 50))]
+    pub fn __new__<'py>(
+        database: Py<Database>,
+        minimum_ani: Option<f64>, 
+        seq_id: Option<f64>, 
+        estimate_unknown: bool, 
+        min_number_kmers: usize
+    ) -> PyResult<Self> {
         if let Some(m) = minimum_ani {
             if m < 0.0 || m > 100.0 {
                 return Err(PyValueError::new_err(format!("invalid value for minimum_ani: {}", m)));
@@ -625,16 +633,16 @@ impl Profiler {
             no_adj: false,
             mean_coverage: false,
         };
-        Ok(Self { args })
+        Ok(Self { args, database })
     }
 
-    #[pyo3(signature = (sample, database))]
+    #[pyo3(signature = (sample))]
     fn query<'py>(
         &self,
         sample: PyRef<'py, SampleSketch>, 
-        database: PyRef<'py, Database>, 
     ) -> PyResult<Vec<AniResult>> {
         let py = sample.py();
+        let database = self.database.bind(py).borrow();
 
         // estimate sample kmer identity
         let kmer_id_opt = if let Some(x) = self.args.seq_id {
@@ -689,15 +697,13 @@ impl Profiler {
             .collect())
     }
 
-    #[pyo3(signature = (sample, database))]
+    #[pyo3(signature = (sample))]
     fn profile<'py>(
         &self,
         sample: PyRef<'py, SampleSketch>, 
-        database: PyRef<'py, Database>, 
-        // seq_id: Option<f64>,
-        // estimate_unknown: bool,
     ) -> PyResult<Vec<AniResult>> {
         let py = sample.py();
+        let database = self.database.bind(py).borrow();
         
         // estimate sample kmer identity
         let kmer_id_opt = if let Some(x) = self.args.seq_id {
