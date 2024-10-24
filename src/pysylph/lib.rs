@@ -644,18 +644,21 @@ impl Profiler {
         };
 
         // extract all matching kmers
-        let mut stats = Vec::new();
-        for sketch in &database.sketches {
-            if let Some(res) = self::exports::contain::get_stats(
-                &self.args, 
-                &sketch, 
-                &sample.sketch, 
-                None,
-                false,
-            ) {
-                stats.push(res);
-            }
-        }
+        let sample_sketch = &sample.sketch;
+        let database_sketches = &database.sketches;
+        let mut stats = py.allow_threads(|| {
+            database_sketches.par_iter()
+                .flat_map_iter(|sketch|
+                    self::exports::contain::get_stats(
+                        &self.args, 
+                        &sketch, 
+                        &sample_sketch, 
+                        None,
+                        false,
+                    )            
+                )
+                .collect::<Vec<_>>()
+        });
 
         // estimate true coverage
         self::exports::contain::estimate_true_cov(
@@ -695,7 +698,7 @@ impl Profiler {
         // estimate_unknown: bool,
     ) -> PyResult<Vec<AniResult>> {
         let py = sample.py();
-
+        
         // estimate sample kmer identity
         let kmer_id_opt = if let Some(x) = self.args.seq_id {
             Some(x.powf(sample.sketch.k as f64))
@@ -705,17 +708,20 @@ impl Profiler {
 
         // extract all matching kmers
         let sample_sketch = &sample.sketch;
-        let mut stats = (&database.sketches).par_iter()
-            .flat_map_iter(|sketch|
-                self::exports::contain::get_stats(
-                    &self.args, 
-                    &sketch, 
-                    &sample_sketch, 
-                    None,
-                    false,
+        let database_sketches = &database.sketches;
+        let mut stats = py.allow_threads(|| {
+            database_sketches.par_iter()
+                .flat_map_iter(|sketch|
+                    self::exports::contain::get_stats(
+                        &self.args, 
+                        &sketch, 
+                        &sample_sketch, 
+                        None,
+                        false,
+                    )            
                 )
-            )
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
+        });
 
         // estimate true coverage
         self::exports::contain::estimate_true_cov(
