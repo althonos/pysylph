@@ -250,30 +250,30 @@ impl DatabaseFile {
     // }
 }
 
-// --- SequenceSketch ----------------------------------------------------------
+// --- SampleSketch ----------------------------------------------------------
 
 /// A (query) sequence sketch .
 #[pyclass(module = "pysylph.lib", frozen)]
-pub struct SequenceSketch {
+pub struct SampleSketch {
     sketch: sylph::types::SequencesSketch,
 }
 
-impl From<sylph::types::SequencesSketch> for SequenceSketch {
+impl From<sylph::types::SequencesSketch> for SampleSketch {
     fn from(sketch: sylph::types::SequencesSketch) -> Self {
         Self { sketch }
     }
 }
 
-impl From<sylph::types::SequencesSketchEncode> for SequenceSketch {
+impl From<sylph::types::SequencesSketchEncode> for SampleSketch {
     fn from(sketch: sylph::types::SequencesSketchEncode) -> Self {
         Self::from(SequencesSketch::from_enc(sketch))
     }
 }
 
 #[pymethods]
-impl SequenceSketch {
+impl SampleSketch {
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<String> {
-        Ok(format!("<SequenceSketch name={:?}>", self.sketch.file_name))
+        Ok(format!("<SampleSketch name={:?}>", self.sketch.file_name))
     }
 
     /// Load a sequence sketch from a path.
@@ -438,7 +438,7 @@ impl Sketcher {
     }
 
     #[pyo3(signature = (name, reads))]
-    fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SequenceSketch> {
+    fn sketch_single<'py>(&self, name: String, reads: Bound<'py, PyAny>) -> PyResult<SampleSketch> {
         let mut kmer_map = std::collections::HashMap::default();
         // let ref_file = &read_file;
         // let reader = parse_fastx_file(&ref_file);
@@ -484,7 +484,7 @@ impl Sketcher {
             mean_read_length,
         };
 
-        Ok(SequenceSketch::from(sketch))
+        Ok(SampleSketch::from(sketch))
     }
 }
 
@@ -493,7 +493,7 @@ impl Sketcher {
 #[pyfunction]
 #[pyo3(signature = (sample, database, seq_id = None, estimate_unknown = false))]
 fn query<'py>(
-    sample: PyRef<'py, SequenceSketch>, 
+    sample: PyRef<'py, SampleSketch>, 
     database: PyRef<'py, Database>, 
     seq_id: Option<f64>,
     estimate_unknown: bool,
@@ -584,7 +584,7 @@ fn query<'py>(
 #[pyfunction]
 #[pyo3(signature = (sample, database, seq_id = None, estimate_unknown = false))]
 fn profile<'py>(
-    sample: PyRef<'py, SequenceSketch>, 
+    sample: PyRef<'py, SampleSketch>, 
     database: PyRef<'py, Database>, 
     seq_id: Option<f64>,
     estimate_unknown: bool,
@@ -712,7 +712,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<DatabaseFile>()?;
 
     m.add_class::<GenomeSketch>()?;
-    m.add_class::<SequenceSketch>()?;
+    m.add_class::<SampleSketch>()?;
     m.add_class::<AniResult>()?;
 
     m.add_function(wrap_pyfunction!(query, &m)?)?;
