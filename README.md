@@ -114,10 +114,12 @@ sample = sketcher.sketch_single(name="sample", reads=reads)
 ### 🔬 Querying a database
 
 Once a sample has been sketched, it can be used to query a database for ANI
-containment ~~or taxonomic profiling~~ :
+containment or taxonomic profiling:
 
 ```python
-results = pysylph.query(sample, database)
+profiler = pysylph.Profiler()
+results = profiler.query(sample, database)   # ANI containment
+results = profiler.profile(sample, database) # taxonomic profiling
 ```
 
 
