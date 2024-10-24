@@ -1,4 +1,4 @@
-# 🌿 Pysylph [![Stars](https://img.shields.io/github/stars/althonos/pysylph.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/pysylph/stargazers)
+# 🕊️ Pysylph [![Stars](https://img.shields.io/github/stars/althonos/pysylph.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/pysylph/stargazers)
 
 *[PyO3](https://pyo3.rs/) bindings and Python interface to [sylph](https://github.com/bluenote-1577/sylph), an ultrafast method for containment ANI querying and taxonomic profiling.*
 
@@ -40,17 +40,18 @@ framework, that provides bindings to `sylph`. It directly links to the
   making it easier to pass your sequences to `pysylph` without having to write
   them to a temporary file.
 
-*This library is still a work-in-progress, and in an experimental stage*.
+*This library is still a work-in-progress, and in an experimental stage, with
+API breaks very likely between minor versions*.
 
 
-<!-- ## 🔧 Installing
+## 🔧 Installing
 
 Pysylph can be installed directly from [PyPI](https://pypi.org/project/pysylph/),
-which hosts some pre-built CPython wheels for x86-64 Unix platforms, as well
-as the code required to compile from source with Rust:
+which hosts some pre-built CPython wheels for x86-64 platforms, as well as the 
+code required to compile from source with Rust and [maturin](https://www.maturin.rs/):
 ```console
 $ pip install pysylph
-``` -->
+```
 
 ## 🔖 Citation
 
@@ -81,6 +82,9 @@ for path in pathlib.Path(".").glob("*.fasta"):
 
 database = pysylph.Database(sketches)
 ```
+
+`Sketcher` methods are re-entrant and can be used to sketch multiple genomes
+in parallel using for instance a [`ThreadPool`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.pool.ThreadPool).
 
 ### 📝 Saving a database
 
@@ -122,6 +126,9 @@ results = profiler.query(sample, database)   # ANI containment
 results = profiler.profile(sample, database) # taxonomic profiling
 ```
 
+`Profiler` methods are re-entrant and can be used to query a database with
+multiple samples in parallel using for instance a 
+[`ThreadPool`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.pool.ThreadPool).
 
 ## 🔎 See Also
 

@@ -5,15 +5,15 @@ build-backend = "maturin"
 [project]
 name = "pysylph"
 dynamic = ["version"]
-# version = "0.1.1"
-description = "Python bindings to sylph, an ultrafast taxonomic profiler."
+version = "0.1.0"
+description = "PyO3 bindings and Python interface to sylph, an ultrafast method for containment ANI querying and taxonomic profiling."
 readme = 'README.md'
 requires-python = ">=3.7"
 license = { file = "COPYING" }
 authors = [
   { name = "Martin Larralde", email = "martin.larralde@embl.de" },
 ]
-keywords = ["bioinformatics", "genomics"]
+keywords = ["bioinformatics", "genomics", "ani", "taxonomy", "profiling"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -37,14 +38,14 @@ classifiers = [
 
 [project.urls]
 # "Documentation" = "https://pysylph.readthedocs.io"
-# "Bug Tracker" = "https://github.com/althonos/pysylph/issues"
-# "Changelog" = "https://github.com/althonos/pysylph/blob/master/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/althonos/pysylph/issues"
+"Changelog" = "https://github.com/althonos/pysylph/blob/master/CHANGELOG.md"
 # "Coverage" = "https://codecov.io/gh/althonos/pysylph/"
-# "Builds" = "https://github.com/althonos/pysylph/actions/"
-# "PyPI" = "https://pypi.org/project/pysylph"
+"Builds" = "https://github.com/althonos/pysylph/actions/"
+"PyPI" = "https://pypi.org/project/pysylph"
 
 [tool.maturin]
-# manifest-path = "pysylph/Cargo.toml"
+manifest-path = "Cargo.toml"
 features = ["extension-module"]
 python-source = "src"
 module-name = "pysylph.lib"
