@@ -1,5 +1,5 @@
-extern crate pysylph;
 extern crate pyo3;
+extern crate pysylph;
 
 use std::path::Path;
 

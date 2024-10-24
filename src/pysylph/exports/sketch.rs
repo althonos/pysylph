@@ -1,7 +1,7 @@
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
-use sylph::types::BYTE_TO_SEQ;
 use sylph::types::Kmer;
+use sylph::types::BYTE_TO_SEQ;
 
 type Marker = u32;
 
