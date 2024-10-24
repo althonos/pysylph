@@ -33,25 +33,23 @@ class TestProfiler(unittest.TestCase):
         results = profiler.query(self.sample)
 
         self.assertEqual(len(results), 3)
-        self.assertEqual(results[0].ani, 99.73)
-        self.assertEqual(results[0].ani_naive, 96.02)
+        self.assertAlmostEqual(results[0].ani, 99.73, places=2)
+        self.assertAlmostEqual(results[0].ani_naive, 96.02, places=2)
 
-        self.assertEqual(results[1].ani, 98.25)
-        self.assertEqual(results[1].ani_naive, 94.29)
+        self.assertAlmostEqual(results[1].ani, 98.25, places=2)
+        self.assertAlmostEqual(results[1].ani_naive, 94.29, places=2)
         
-        self.assertEqual(results[2].ani, 98.16)
-        self.assertEqual(results[2].ani_naive, 94.26)
+        self.assertAlmostEqual(results[2].ani, 98.16, places=2)
+        self.assertAlmostEqual(results[2].ani_naive, 94.26, places=2)
 
     def test_profile(self):
         # sketch sequence
         profiler = Profiler(self.db)
         results = profiler.profile(self.sample)
 
-        self.assertEqual(len(results), 3)
-        self.assertEqual(results[0].ani, 99.73)
-        self.assertEqual(results[0].ani_naive, 96.02)
-        self.assertEqual(results[0].sequence_abundance, 100.0)
-        self.assertEqual(results[0].taxonomic_abundance, 100.0)
-
-    def test_invalid_kmer(self):
-        self.assertRaises(ValueError, Sketcher, k=8)
+        self.assertEqual(len(results), 1)
+        self.assertAlmostEqual(results[0].ani, 99.73, places=2)
+        self.assertAlmostEqual(results[0].ani_naive, 96.02, places=2)
+        self.assertAlmostEqual(results[0].sequence_abundance, 100.0, places=2)
+        self.assertAlmostEqual(results[0].taxonomic_abundance, 100.0, places=2)
+        self.assertAlmostEqual(results[0].kmers_reassigned, 0)

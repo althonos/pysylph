@@ -4,6 +4,7 @@ extern crate sylph;
 extern crate memmap;
 extern crate statrs;
 
+use std::borrow::Borrow;
 use std::sync::Arc;
 use std::io::Read;
 
@@ -197,10 +198,10 @@ impl Database {
     /// 
     #[classmethod]
     #[pyo3(signature = (file))]
-    fn load<'py>(cls: &Bound<'py, PyType>, file: Bound<'py, PyAny>) -> PyResult<Self> {
+    fn load<'py>(cls: &Bound<'py, PyType>, file: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = cls.py();
         // attempt to extract a path, or fall back to reader
-        let result: Result<Vec<Arc<sylph::types::GenomeSketch>>, _> = if let Ok(s) = py.import_bound(pyo3::intern!(py, "os"))?.call_method1(pyo3::intern!(py, "fsdecode"), (&file,)) {
+        let result: Result<Vec<Arc<sylph::types::GenomeSketch>>, _> = if let Ok(s) = py.import_bound(pyo3::intern!(py, "os"))?.call_method1(pyo3::intern!(py, "fsdecode"), (file,)) {
             let path = s.downcast::<PyString>()?;
             let f = std::fs::File::open(path.to_str()?)?;
             let reader = std::io::BufReader::new(f);
@@ -359,25 +360,23 @@ impl SampleSketch {
 
     /// Load a sequence sketch from a path.
     #[classmethod]
-    #[pyo3(signature = (path, memmap = true))]
-    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Py<Self>> {
+    #[pyo3(signature = (file))]
+    fn load<'py>(cls: &Bound<'py, PyType>, file: &Bound<'py, PyAny>) -> PyResult<Py<Self>> {
         let py = cls.py();
-        
-        // FIXME(@althonos): Add support for reading from a file-like object.
-
-        // load file using either memmap or direct read
-        let f = std::fs::File::open(&*path)?;
-        let result: bincode::Result<sylph::types::SequencesSketchEncode> = if memmap {
-            let m = unsafe { memmap::Mmap::map(&f)? };
-            bincode::deserialize(&m)
+        // attempt to extract a path, or fall back to reader
+        let result: Result<sylph::types::SequencesSketchEncode, _> = if let Ok(s) = py.import_bound(pyo3::intern!(py, "os"))?.call_method1(pyo3::intern!(py, "fsdecode"), (file,)) {
+            let path = s.downcast::<PyString>()?;
+            let f = std::fs::File::open(path.to_str()?)?;
+            let reader = std::io::BufReader::new(f);
+            bincode::deserialize_from(reader)
         } else {
+            let f = self::pyfile::PyFileRead::from_ref(&file)?;
             let reader = std::io::BufReader::new(f);
             bincode::deserialize_from(reader)
         };
-
         // handle error
         match result {
-            Ok(sketches) => Py::new(py, Self::from(sketches)),
+            Ok(sketch) => Py::new(py, Self::from(sketch)),
             Err(e) => {
                 match *e {
                     bincode::ErrorKind::Io(io) => Err(io.into()),
@@ -402,7 +401,7 @@ impl SampleSketch {
 // --- ANIResult ---------------------------------------------------------------
 
 /// An ANI result.
-#[pyclass(module = "pysylph.lib", frozen)]
+#[pyclass(module = "pysylph.lib", frozen, subclass)]
 pub struct AniResult {
     result: sylph::types::AniResult<'static>,
     genome: Arc<sylph::types::GenomeSketch>,
@@ -428,6 +427,46 @@ impl AniResult {
     fn coverage<'py>(slf: PyRef<'py, Self>) -> f64 {
         slf.result.final_est_cov
     } 
+}
+
+#[pyclass(module = "pysylph.lib", frozen, extends=AniResult)]
+pub struct ProfileResult {}
+
+#[pymethods]
+impl ProfileResult {
+    pub fn __repr__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<String> {
+        Ok(format!("<ProfileResult genome={:?} ani={:?}>", slf.as_super().genome.file_name, slf.as_super().result.final_est_ani))
+    }
+
+    #[getter]
+    fn sequence_abundance<'py>(slf: PyRef<'py, Self>) -> f64 {
+        *slf
+            .as_super()
+            .result
+            .seq_abund
+            .as_ref()
+            .expect("ProfileResult should always have a sequence abundance set")
+    }
+
+    #[getter]
+    fn taxonomic_abundance<'py>(slf: PyRef<'py, Self>) -> f64 {
+        *slf
+            .as_super()
+            .result
+            .rel_abund
+            .as_ref()
+            .expect("ProfileResult should always have a taxonomic abundance set")
+    }
+
+    #[getter]
+    fn kmers_reassigned<'py>(slf: PyRef<'py, Self>) -> usize {
+        *slf
+            .as_super()
+            .result
+            .kmers_lost
+            .as_ref()
+            .expect("ProfileResult should always have reassigned kmers set")
+    }
 }
 
 // --- Sketcher ----------------------------------------------------------------
@@ -582,7 +621,10 @@ impl Sketcher {
 /// A ``sylph`` profiler.
 #[pyclass(module = "pysylph.lib", frozen)]
 pub struct Profiler {
-    args: sylph::cmdline::ContainArgs,
+    minimum_ani: Option<f64>,
+    seq_id: Option<f64>,
+    estimate_unknown: bool,
+    min_number_kmers: usize,
     #[pyo3(get)]
     database: Py<Database>,
 }
@@ -603,18 +645,121 @@ impl Profiler {
                 return Err(PyValueError::new_err(format!("invalid value for minimum_ani: {}", m)));
             }
         }
+        Ok(Self { minimum_ani, database, estimate_unknown, seq_id, min_number_kmers })
+    }
+
+    #[pyo3(signature = (sample))]
+    fn query<'py>(
+        &self,
+        sample: PyRef<'py, SampleSketch>, 
+    ) -> PyResult<Vec<Py<AniResult>>> {
+        let py = sample.py();
+        let database = self.database.bind(py).borrow();
         let args = sylph::cmdline::ContainArgs {
-            minimum_ani,
+            minimum_ani: self.minimum_ani,
             files: Default::default(),
             file_list: Default::default(),
             min_count_correct: 3.0,
-            min_number_kmers: min_number_kmers as f64,
+            min_number_kmers: self.min_number_kmers as f64,
             threads: 3,
             sample_threads: None,
             trace: false,
             debug: false,
-            estimate_unknown,
-            seq_id,
+            estimate_unknown: self.estimate_unknown,
+            seq_id: self.seq_id,
+            redundant_ani: 99.0,
+            first_pair: Default::default(),
+            second_pair: Default::default(),
+            c: 200,    
+            k: 3,
+            individual: false,
+            min_spacing_kmer: 30,
+            out_file_name: None,
+            log_reassignments: false,
+            pseudotax: false,
+            ratio: false,
+            mme: false,
+            mle: false,
+            nb: false,
+            no_ci: false,
+            no_adj: false,
+            mean_coverage: false,
+        };
+
+        // estimate sample kmer identity
+        let kmer_id_opt = if let Some(x) = args.seq_id {
+            Some(x.powf(sample.sketch.k as f64))
+        } else {
+            self::exports::contain::get_kmer_identity(&sample.sketch, args.estimate_unknown)
+        };
+
+        // extract all matching kmers
+        let sample_sketch = &sample.sketch;
+        let database_sketches = &database.sketches;
+        let mut stats = py.allow_threads(|| {
+            database_sketches.par_iter()
+                .flat_map_iter(|sketch|
+                    self::exports::contain::get_stats(
+                        &args, 
+                        &sketch, 
+                        &sample_sketch, 
+                        None,
+                        false,
+                    )            
+                )
+                .collect::<Vec<_>>()
+        });
+
+        // estimate true coverage
+        self::exports::contain::estimate_true_cov(
+            &mut stats, 
+            kmer_id_opt, 
+            args.estimate_unknown, 
+            sample.sketch.mean_read_length, 
+            sample.sketch.k
+        );
+
+        // sort by ANI
+        // if pseudotax {} else {
+        stats.sort_by(|x,y| y.final_est_ani.partial_cmp(&x.final_est_ani).unwrap());
+        // }
+
+        // Ok(())
+        stats.into_iter()
+            .map(|r| {
+                let sketch = database.sketches.iter()
+                    .find(|x| r.genome_sketch.file_name == x.file_name )
+                    .unwrap();
+                Py::new(
+                    py,
+                    PyClassInitializer::from(AniResult {
+                        result: unsafe { std::mem::transmute(r) },
+                        genome: sketch.clone(),
+                    })
+                )
+            })
+            .collect()
+    }
+
+    #[pyo3(signature = (sample))]
+    fn profile<'py>(
+        &self,
+        sample: PyRef<'py, SampleSketch>, 
+    ) -> PyResult<Vec<Py<ProfileResult>>> {
+        let py = sample.py();
+        let database = self.database.bind(py).borrow();
+        let args = sylph::cmdline::ContainArgs {
+            minimum_ani: self.minimum_ani,
+            files: Default::default(),
+            file_list: Default::default(),
+            min_count_correct: 3.0,
+            min_number_kmers: self.min_number_kmers as f64,
+            threads: 3,
+            sample_threads: None,
+            trace: false,
+            debug: false,
+            estimate_unknown: self.estimate_unknown,
+            seq_id: self.seq_id,
             redundant_ani: 99.0,
             first_pair: Default::default(),
             second_pair: Default::default(),
@@ -633,83 +778,12 @@ impl Profiler {
             no_adj: false,
             mean_coverage: false,
         };
-        Ok(Self { args, database })
-    }
-
-    #[pyo3(signature = (sample))]
-    fn query<'py>(
-        &self,
-        sample: PyRef<'py, SampleSketch>, 
-    ) -> PyResult<Vec<AniResult>> {
-        let py = sample.py();
-        let database = self.database.bind(py).borrow();
-
-        // estimate sample kmer identity
-        let kmer_id_opt = if let Some(x) = self.args.seq_id {
-            Some(x.powf(sample.sketch.k as f64))
-        } else {
-            self::exports::contain::get_kmer_identity(&sample.sketch, self.args.estimate_unknown)
-        };
-
-        // extract all matching kmers
-        let sample_sketch = &sample.sketch;
-        let database_sketches = &database.sketches;
-        let mut stats = py.allow_threads(|| {
-            database_sketches.par_iter()
-                .flat_map_iter(|sketch|
-                    self::exports::contain::get_stats(
-                        &self.args, 
-                        &sketch, 
-                        &sample_sketch, 
-                        None,
-                        false,
-                    )            
-                )
-                .collect::<Vec<_>>()
-        });
-
-        // estimate true coverage
-        self::exports::contain::estimate_true_cov(
-            &mut stats, 
-            kmer_id_opt, 
-            self.args.estimate_unknown, 
-            sample.sketch.mean_read_length, 
-            sample.sketch.k
-        );
-
-        // sort by ANI
-        // if pseudotax {} else {
-        stats.sort_by(|x,y| y.final_est_ani.partial_cmp(&x.final_est_ani).unwrap());
-        // }
-
-        // Ok(())
-        Ok(stats.into_iter()
-            .map(|r| {
-                let sketch = database.sketches.iter()
-                    .find(|x| r.genome_sketch.file_name == x.file_name )
-                    .unwrap();
-                AniResult {
-                    result: unsafe { std::mem::transmute(r) },
-                    genome: sketch.clone(),
-                }
-
-            })
-            .collect())
-    }
-
-    #[pyo3(signature = (sample))]
-    fn profile<'py>(
-        &self,
-        sample: PyRef<'py, SampleSketch>, 
-    ) -> PyResult<Vec<AniResult>> {
-        let py = sample.py();
-        let database = self.database.bind(py).borrow();
         
         // estimate sample kmer identity
-        let kmer_id_opt = if let Some(x) = self.args.seq_id {
+        let kmer_id_opt = if let Some(x) = args.seq_id {
             Some(x.powf(sample.sketch.k as f64))
         } else {
-            self::exports::contain::get_kmer_identity(&sample.sketch, self.args.estimate_unknown)
+            self::exports::contain::get_kmer_identity(&sample.sketch, args.estimate_unknown)
         };
 
         // extract all matching kmers
@@ -719,7 +793,7 @@ impl Profiler {
             database_sketches.par_iter()
                 .flat_map_iter(|sketch|
                     self::exports::contain::get_stats(
-                        &self.args, 
+                        &args, 
                         &sketch, 
                         &sample_sketch, 
                         None,
@@ -733,7 +807,7 @@ impl Profiler {
         self::exports::contain::estimate_true_cov(
             &mut stats, 
             kmer_id_opt, 
-            self.args.estimate_unknown, 
+            args.estimate_unknown, 
             sample.sketch.mean_read_length, 
             sample.sketch.k
         );
@@ -744,14 +818,14 @@ impl Profiler {
             let remaining_stats = stats
                 .iter()
                 .map(|x| x.genome_sketch)
-                .flat_map(|genome_sketch| self::exports::contain::get_stats(&self.args, &genome_sketch, &sample.sketch, Some(&winner_map), false))
+                .flat_map(|genome_sketch| self::exports::contain::get_stats(&args, &genome_sketch, &sample.sketch, Some(&winner_map), false))
                 .collect();
-            stats = self::exports::contain::derep_if_reassign_threshold(&stats, remaining_stats, self.args.redundant_ani, sample.sketch.k);
-            self::exports::contain::estimate_true_cov(&mut stats, kmer_id_opt, self.args.estimate_unknown, sample.sketch.mean_read_length, sample.sketch.k);
+            stats = self::exports::contain::derep_if_reassign_threshold(&stats, remaining_stats, args.redundant_ani, sample.sketch.k);
+            self::exports::contain::estimate_true_cov(&mut stats, kmer_id_opt, args.estimate_unknown, sample.sketch.mean_read_length, sample.sketch.k);
 
             // estimate unknown if needed
             let mut bases_explained = 1.;
-            if self.args.estimate_unknown {
+            if args.estimate_unknown {
                 bases_explained = self::exports::contain::estimate_covered_bases(&stats, &sample.sketch, sample.sketch.mean_read_length, sample.sketch.k);
             }
 
@@ -768,18 +842,20 @@ impl Profiler {
         stats.sort_by(|x,y| y.rel_abund.unwrap().partial_cmp(&x.rel_abund.unwrap()).unwrap());
 
         // convert result
-        Ok(stats.into_iter()
+        stats.into_iter()
             .map(|r| {
                 let sketch = database.sketches.iter()
                     .find(|x| r.genome_sketch.file_name == x.file_name )
                     .unwrap();
-                AniResult {
-                    result: unsafe { std::mem::transmute(r) },
-                    genome: sketch.clone(),
-                }
-
+                Py::new(
+                    py,
+                    PyClassInitializer::from(AniResult {
+                        result: unsafe { std::mem::transmute(r) },
+                        genome: sketch.clone(),
+                    }).add_subclass(ProfileResult {})
+                )
             })
-            .collect())
+            .collect()
     }
 }
 
