@@ -18,11 +18,13 @@ use pyo3::pybacked::PyBackedStr;
 use pyo3::types::PyTuple;
 use pyo3::types::PyList;
 use pyo3::types::PyType;
+use pyo3::types::PyString;
 use rayon::prelude::*;
 use serde::Deserialize;
 use sylph::types::SequencesSketch;
 
 mod exports;
+mod pyfile;
 
 // --- Base --------------------------------------------------------------------
 
@@ -181,14 +183,12 @@ impl Database {
         }
     }
 
-    /// Load a database from a path.
+    /// Load a database from a file.
     /// 
     /// Arguments:
-    ///     file (`str`, `os.PathLike`): The path to the file containing the
-    ///         database.
-    ///     memmap (`bool`): Set to `False` to disable the use of memory
-    ///         mapping while loading the database. This may degrade 
-    ///         performance. 
+    ///     file (`str`, `os.PathLike` or file-like handle): The path to the 
+    ///         file containing the database, or a file-like object open in
+    ///         binary mode.
     /// 
     /// Example:
     ///     >>> db = pysylph.Database.load("ecoli.syldb")
@@ -196,21 +196,21 @@ impl Database {
     ///     'test_files/e.coli-K12.fasta.gz'
     /// 
     #[classmethod]
-    #[pyo3(signature = (path, memmap = true))]
-    fn load<'py>(cls: &Bound<'_, PyType>, path: PyBackedStr, memmap: bool) -> PyResult<Self> {
-        // FIXME(@althonos): Add support for reading from a file-like object.
-
-        // load file using either memmap or direct read
-        let f = std::fs::File::open(&*path)?;
-        let result: bincode::Result<Vec<Arc<sylph::types::GenomeSketch>>> = if memmap {
-            let m = unsafe { memmap::Mmap::map(&f)? };
-            bincode::deserialize(&m)
+    #[pyo3(signature = (file))]
+    fn load<'py>(cls: &Bound<'py, PyType>, file: Bound<'py, PyAny>) -> PyResult<Self> {
+        let py = cls.py();
+        // attempt to extract a path, or fall back to reader
+        let result: Result<Vec<Arc<sylph::types::GenomeSketch>>, _> = if let Ok(s) = py.import_bound(pyo3::intern!(py, "os"))?.call_method1(pyo3::intern!(py, "fsdecode"), (&file,)) {
+            let path = s.downcast::<PyString>()?;
+            let f = std::fs::File::open(path.to_str()?)?;
+            let reader = std::io::BufReader::new(f);
+            bincode::deserialize_from(reader)
         } else {
+            let f = self::pyfile::PyFileRead::from_ref(&file)?;
             let reader = std::io::BufReader::new(f);
             bincode::deserialize_from(reader)
         };
-
-        // hadnle error
+        // handle loader error
         match result {
             Ok(sketches) => Ok(Database::from(sketches)),
             Err(e) => {
