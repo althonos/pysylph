@@ -413,27 +413,29 @@ impl SampleSketch {
 /// An ANI result.
 #[pyclass(module = "pysylph.lib", frozen, subclass)]
 pub struct AniResult {
+    // FIXME: currently works because of shitty unsafe code, ultimately this
+    //        struct should only extract the needed attributes from AniResult
+    //        not to have to worry about reference lifetimes.
     result: sylph::types::AniResult<'static>,
-    genome: Arc<sylph::types::GenomeSketch>,
+    genome: Py<GenomeSketch>,
 }
 
 #[pymethods]
 impl AniResult {
     pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        let py = slf.py();
+        let genome = slf.genome.bind(py).borrow();
         Ok(format!(
             "<AniResult genome={:?} ani={:?}>",
-            slf.genome.file_name, slf.result.final_est_ani
+            genome.sketch.file_name, slf.result.final_est_ani
         ))
     }
 
     /// `~pysylph.GenomeSketch`: A reference to the genome sketch.
     #[getter]
-    fn genome_sketch<'py>(slf: PyRef<'py, Self>) -> PyResult<Py<GenomeSketch>> {
+    fn genome_sketch<'py>(slf: PyRef<'py, Self>) -> Py<GenomeSketch> {
         let py = slf.py();
-        Py::new(
-            py,
-            PyClassInitializer::from(Sketch).add_subclass(GenomeSketch::from(slf.genome.clone())),
-        )
+        slf.genome.clone_ref(py)
     }
 
     /// `float`: The coverage-corrected containment ANI, as a percentage.
@@ -461,9 +463,11 @@ pub struct ProfileResult {}
 #[pymethods]
 impl ProfileResult {
     pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
+        let py = slf.py();
+        let genome = slf.as_super().genome.bind(py).borrow();
         Ok(format!(
             "<ProfileResult genome={:?} ani={:?}>",
-            slf.as_super().genome.file_name,
+            genome.sketch.file_name,
             slf.as_super().result.final_est_ani
         ))
     }
@@ -785,11 +789,16 @@ impl Profiler {
                     .iter()
                     .find(|x| r.genome_sketch.file_name == x.file_name)
                     .unwrap();
+                let genome = Py::new(
+                    py,
+                    PyClassInitializer::from(Sketch)
+                        .add_subclass(GenomeSketch::from(sketch.clone())),
+                )?;
                 Py::new(
                     py,
                     PyClassInitializer::from(AniResult {
                         result: unsafe { std::mem::transmute(r) },
-                        genome: sketch.clone(),
+                        genome,
                     }),
                 )
             })
@@ -933,11 +942,16 @@ impl Profiler {
                     .iter()
                     .find(|x| r.genome_sketch.file_name == x.file_name)
                     .unwrap();
+                let genome = Py::new(
+                    py,
+                    PyClassInitializer::from(Sketch)
+                        .add_subclass(GenomeSketch::from(sketch.clone())),
+                )?;
                 Py::new(
                     py,
                     PyClassInitializer::from(AniResult {
                         result: unsafe { std::mem::transmute(r) },
-                        genome: sketch.clone(),
+                        genome,
                     })
                     .add_subclass(ProfileResult {}),
                 )
