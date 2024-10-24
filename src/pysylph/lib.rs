@@ -26,7 +26,7 @@ mod pyfile;
 // --- Base --------------------------------------------------------------------
 
 #[pyclass(module = "pysylph.lib", frozen, subclass)]
-pub struct Sketch {}
+pub struct Sketch;
 
 #[pymethods]
 impl Sketch {
@@ -62,12 +62,6 @@ impl From<Arc<sylph::types::GenomeSketch>> for GenomeSketch {
 impl From<sylph::types::GenomeSketch> for GenomeSketch {
     fn from(sketch: sylph::types::GenomeSketch) -> Self {
         Self::from(Arc::new(sketch))
-    }
-}
-
-impl From<GenomeSketch> for PyClassInitializer<GenomeSketch> {
-    fn from(value: GenomeSketch) -> Self {
-        PyClassInitializer::new(value, PyClassInitializer::from(Sketch {}))
     }
 }
 
@@ -176,7 +170,7 @@ impl Database {
         if item_ < 0 || item_ >= slf.sketches.len() as isize {
             Err(PyIndexError::new_err(item))
         } else {
-            Py::new(py, GenomeSketch::from(slf.sketches[item_ as usize].clone()))
+            Py::new(py, PyClassInitializer::from(Sketch).add_subclass(GenomeSketch::from(slf.sketches[item_ as usize].clone()))   )
         }
     }
 
@@ -289,7 +283,7 @@ impl DatabaseFile {
         match self.reader.next() {
             Some(Err(e)) => Err(PyRuntimeError::new_err(e.to_string())),
             None => Ok(None),
-            Some(Ok(item)) => Some(Py::new(py, GenomeSketch::from(item))).transpose()
+            Some(Ok(item)) => Some(Py::new(py, PyClassInitializer::from(Sketch).add_subclass(GenomeSketch::from(item)))).transpose()
         }
     }
 
@@ -330,12 +324,6 @@ impl From<sylph::types::SequencesSketchEncode> for SampleSketch {
     }
 }
 
-impl From<SampleSketch> for PyClassInitializer<SampleSketch> {
-    fn from(value: SampleSketch) -> Self {
-        PyClassInitializer::new(value, PyClassInitializer::from(Sketch {}))
-    }
-}
-
 #[pymethods]
 impl SampleSketch {
     pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
@@ -372,7 +360,7 @@ impl SampleSketch {
         };
         // handle error
         match result {
-            Ok(sketch) => Py::new(py, Self::from(sketch)),
+            Ok(sketch) => Py::new(py, PyClassInitializer::from(Sketch).add_subclass(Self::from(sketch))),
             Err(e) => {
                 match *e {
                     bincode::ErrorKind::Io(io) => Err(io.into()),
@@ -552,7 +540,7 @@ impl Sketcher {
             }
         });
 
-        Py::new(py, GenomeSketch::from(gsketch))
+        Py::new(py, PyClassInitializer::from(Sketch).add_subclass(GenomeSketch::from(gsketch)))
     }
 
     #[pyo3(signature = (name, reads))]
@@ -608,7 +596,7 @@ impl Sketcher {
             mean_read_length,
         };
 
-        Py::new(py, SampleSketch::from(sketch))
+        Py::new(py, PyClassInitializer::new(SampleSketch::from(sketch), PyClassInitializer::from(Sketch))   )
     }
 }
 
