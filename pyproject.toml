@@ -50,6 +50,15 @@ features = ["extension-module"]
 python-source = "src"
 module-name = "pysylph.lib"
 
+[tool.cibuildwheel]
+skip = ["*-musllinux_i686"]
+before-build = "pip install maturin"
+test-command = "python -m unittest {package}.tests -v"
+
+[tool.cibuildwheel.linux]
+environment = { PATH = "$HOME/.cargo/bin:$PATH" }
+before-all = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y"
+
 [tool.coverage.report]
 show_missing = true
 exclude_lines = [
