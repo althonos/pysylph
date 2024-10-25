@@ -7,9 +7,11 @@ use std::io::Read;
 use std::sync::Arc;
 
 use bincode::de::read::IoReader;
+use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIndexError;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::PyTypeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedStr;
@@ -510,6 +512,50 @@ impl ProfileResult {
 
 // --- Sketcher ----------------------------------------------------------------
 
+enum SequenceData {
+    #[allow(dead_code)]
+    Buffer(PyBuffer<u8>, &'static [u8]),
+    BackedStr(PyBackedStr),
+}
+
+impl SequenceData {
+    fn as_bytes<'py>(&self) -> &[u8] {
+        match self {
+            SequenceData::BackedStr(s) => s.as_bytes(),
+            SequenceData::Buffer(_, s) => s,
+        }
+    }
+}
+
+impl<'py> FromPyObject<'py> for SequenceData {
+    fn extract_bound(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(buffer) = PyBuffer::get_bound(&obj) {
+            if !buffer.is_c_contiguous() {
+                Err(PyValueError::new_err("expected C-contiguous buffer"))
+            } else if buffer.shape().len() != 1 {
+                Err(PyValueError::new_err("expected buffer of dimension 1"))
+            } else {
+                // NOTE(@althonos): Yes, this is unsafe because the Python
+                //                  object may be modified in parallel. We're
+                //                  gonna have to trust the user doesn't do
+                //                  weird shit with the sequence, but that's
+                //                  a trade-off so we can avoid copy data
+                //                  from the Python heap (or other Python
+                //                  extension objects).
+                let x = buffer
+                    .as_slice(obj.py())
+                    .ok_or_else(|| PyValueError::new_err("invalid buffer"))?;
+                let s = unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len()) };
+                Ok(SequenceData::Buffer(buffer, s))
+            }
+        } else if let Ok(s) = obj.extract::<PyBackedStr>() {
+            Ok(SequenceData::BackedStr(s))
+        } else {
+            Err(PyTypeError::new_err("expected string or byte buffer"))
+        }
+    }
+}
+
 /// A ``sylph`` sketcher.
 #[pyclass(module = "pysylph.lib", frozen)]
 pub struct Sketcher {
@@ -557,7 +603,7 @@ impl Sketcher {
         // extract records
         let sequences = contigs
             .iter()?
-            .map(|r| r.and_then(|s| PyBackedStr::extract_bound(&s)))
+            .map(|r| r?.extract::<SequenceData>())
             .collect::<PyResult<Vec<_>>>()?;
 
         // sketch all records while allowing parallel code
@@ -627,7 +673,7 @@ impl Sketcher {
         let mut num_dup_removed = 0;
 
         for result in reads.iter()? {
-            let read: PyBackedStr = result?.extract()?;
+            let read = result?.extract::<SequenceData>()?;
             let seq = read.as_bytes();
 
             let mut vec = vec![];
