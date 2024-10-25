@@ -182,6 +182,7 @@ jobs:
     if: "!contains(github.ref, 'rc')"
     name: Release
     needs: upload
+    permissions: write-all
     steps:
     - name: Checkout code
       uses: actions/checkout@v1
