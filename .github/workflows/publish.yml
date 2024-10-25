@@ -48,23 +48,24 @@ jobs:
         name: wheels-manylinux_x86_64
         path: dist/*
 
-  # wheel-macos-x86_64:
-  #   name: Build MacOS wheels (x86-64)
-  #   runs-on: macOS-12
-  #   steps:
-  #   - uses: actions/checkout@v4
-  #   - name: Build manylinux wheels
-  #     uses: pypa/cibuildwheel@v2.21.3
-  #     env:
-  #       CIBW_ARCHS: x86_64
-  #       CIBW_BUILD: 'cp*-macosx_x86_64'
-  #       CIBW_ENVIRONMENT: CARGO_NET_GIT_FETCH_WITH_CLI=true MACOSX_DEPLOYMENT_TARGET=12.0
-  #     with:
-  #       output-dir: dist
-  #   - uses: actions/upload-artifact@v4
-  #     with:
-  #       name: wheels-macosx_x86_64
-  #       path: dist/*
+  wheel-macos-x86_64:
+    name: Build MacOS wheels (x86-64)
+    runs-on: macOS-12
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build manylinux wheels
+      uses: pypa/cibuildwheel@v2.21.3
+      env:
+        CIBW_ARCHS: x86_64
+        CIBW_BUILD: 'cp*-macosx_x86_64'
+        CIBW_ENVIRONMENT: CARGO_NET_GIT_FETCH_WITH_CLI=true MACOSX_DEPLOYMENT_TARGET=12.0
+        CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64"
+      with:
+        output-dir: dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-macosx_x86_64
+        path: dist/*
 
   # wheel-macos-aarch64:
   #   name: Build MacOS wheels (Aarch64)
@@ -85,23 +86,23 @@ jobs:
   #       name: wheels-macosx_arm64
   #       path: dist/*
 
-  # wheel-win32-x86_64:
-  #   name: Build Windows wheels (x86-64)
-  #   runs-on: windows-2019
-  #   steps:
-  #   - uses: actions/checkout@v4
-  #   - uses: dtolnay/rust-toolchain@stable
-  #   - name: Build manylinux wheels
-  #     uses: pypa/cibuildwheel@v2.21.3
-  #     env:
-  #       CIBW_ARCHS: AMD64
-  #       CIBW_BUILD: 'cp*-win_amd64'
-  #     with:
-  #       output-dir: dist
-  #   - uses: actions/upload-artifact@v4
-  #     with:
-  #       name: wheels-win_amd64
-  #       path: dist/*
+  wheel-win32-x86_64:
+    name: Build Windows wheels (x86-64)
+    runs-on: windows-2019
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build manylinux wheels
+      uses: pypa/cibuildwheel@v2.21.3
+      env:
+        CIBW_ARCHS: AMD64
+        CIBW_BUILD: 'cp*-win_amd64'
+      with:
+        output-dir: dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-win_amd64
+        path: dist/*
 
   sdist:
     runs-on: ubuntu-latest
@@ -157,8 +158,8 @@ jobs:
     # - wheel-linux-aarch64
     - wheel-linux-x86_64
     # - wheel-macos-aarch64
-    # - wheel-macos-x86_64
-    # - wheel-win32-x86_64
+    - wheel-macos-x86_64
+    - wheel-win32-x86_64
     steps:
     - name: Download source distribution
       uses: actions/download-artifact@v4
