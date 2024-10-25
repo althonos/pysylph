@@ -582,12 +582,12 @@ impl Sketcher {
         })
     }
 
-    #[pyo3(signature = (name, contigs, pseudotax=true))]
+    #[pyo3(signature = (name, contigs, profiling=true))]
     fn sketch_genome<'py>(
         slf: PyRef<'py, Self>,
         name: String,
         contigs: Bound<'py, PyAny>,
-        pseudotax: bool,
+        profiling: bool,
     ) -> PyResult<Py<GenomeSketch>> {
         let py = slf.py();
 
@@ -596,7 +596,7 @@ impl Sketcher {
         gsketch.c = slf.c;
         gsketch.k = slf.k;
         gsketch.file_name = name;
-        if pseudotax {
+        if profiling {
             gsketch.pseudotax_tracked_nonused_kmers = Some(Vec::new());
         }
 
