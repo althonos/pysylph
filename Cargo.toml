@@ -12,11 +12,10 @@ doctest = false
 
 [dependencies]
 pyo3 = "0.22.5"
-bincode = "*"
-memmap = "*"
-fxhash = "*"
-statrs = "*"
-fastrand = "*"
+bincode = "1"
+fxhash = "0"
+statrs = "0.16"
+fastrand = "2"
 rayon = "1"
 
 [dependencies.serde]

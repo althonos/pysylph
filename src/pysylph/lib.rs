@@ -1,5 +1,4 @@
 extern crate bincode;
-extern crate memmap;
 extern crate pyo3;
 extern crate statrs;
 extern crate sylph;
