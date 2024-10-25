@@ -8,7 +8,7 @@ from pysylph import Database, Sketcher
 
 
 def read_fasta_seq(file):
-    file.readline() # skip header
+    file.readline()  # skip header
     return "".join(map(str.strip, file))
 
 
@@ -18,14 +18,18 @@ class TestSketcher(unittest.TestCase):
     def setUpClass(cls):
         # load reference database
         if hasattr(importlib.resources, "files"):
-            handler = nullcontext(importlib.resources.files(__package__).joinpath("clodf13.syldb"))
+            handler = nullcontext(
+                importlib.resources.files(__package__).joinpath("clodf13.syldb")
+            )
         else:
             handler = importlib.resources.path(__package__, "clodf13.syldb")
         with handler as path:
             cls.db = Database.load(os.fspath(path))
         # load seq
         if hasattr(importlib.resources, "files"):
-            handler = nullcontext(importlib.resources.files(__package__).joinpath("clodf13.fna.gz"))
+            handler = nullcontext(
+                importlib.resources.files(__package__).joinpath("clodf13.fna.gz")
+            )
         else:
             handler = importlib.resources.path(__package__, "clodf13.fna.gz")
         with handler as path:
@@ -61,4 +65,3 @@ class TestSketcher(unittest.TestCase):
         self.assertEqual(sketch.k, self.db[0].k)
         self.assertEqual(sketch.c, self.db[0].c)
         self.assertEqual(sketch.kmers, self.db[0].kmers)
-        

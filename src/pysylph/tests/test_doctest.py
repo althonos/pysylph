@@ -18,6 +18,7 @@ from unittest import mock
 
 import pysylph
 
+
 def _load_tests_from_module(tests, module, globs, setUp=None, tearDown=None):
     """Load tests from module, iterating through submodules."""
     for attr in (getattr(module, x) for x in dir(module) if not x.startswith("_")):
@@ -36,7 +37,7 @@ def _load_tests_from_module(tests, module, globs, setUp=None, tearDown=None):
 def load_tests(loader, tests, ignore):
     """`load_test` function used by unittest to find the doctests."""
     _current_cwd = os.getcwd()
-   
+
     def setUp(self):
         warnings.simplefilter("ignore")
         os.chdir(os.path.realpath(os.path.join(__file__, os.path.pardir)))

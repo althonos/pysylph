@@ -1,9 +1,5 @@
-from . import (
-    test_database,
-    test_doctest,
-    test_sketcher,
-    test_profiler
-)
+from . import test_database, test_doctest, test_sketcher, test_profiler
+
 
 def load_tests(loader, suite, pattern):
     suite.addTests(loader.loadTestsFromModule(test_database))

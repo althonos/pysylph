@@ -6,7 +6,6 @@ from contextlib import nullcontext
 from pysylph import Database
 
 
-
 class TestDatabase(unittest.TestCase):
 
     def test_init_empty(self):
@@ -21,7 +20,9 @@ class TestDatabase(unittest.TestCase):
 
     def test_load_filename(self):
         if hasattr(importlib.resources, "files"):
-            handler = nullcontext(importlib.resources.files(__package__).joinpath("ecoli.syldb"))
+            handler = nullcontext(
+                importlib.resources.files(__package__).joinpath("ecoli.syldb")
+            )
         else:
             handler = importlib.resources.path(__package__, "ecoli.syldb")
         with handler as path:
@@ -30,7 +31,9 @@ class TestDatabase(unittest.TestCase):
 
     def test_load_path(self):
         if hasattr(importlib.resources, "files"):
-            handler = nullcontext(importlib.resources.files(__package__).joinpath("ecoli.syldb"))
+            handler = nullcontext(
+                importlib.resources.files(__package__).joinpath("ecoli.syldb")
+            )
         else:
             handler = importlib.resources.path(__package__, "ecoli.syldb")
         with handler as path:
@@ -39,7 +42,11 @@ class TestDatabase(unittest.TestCase):
 
     def test_load_file_object(self):
         if hasattr(importlib.resources, "files"):
-            handler = importlib.resources.files(__package__).joinpath("ecoli.syldb").open("rb")
+            handler = (
+                importlib.resources.files(__package__)
+                .joinpath("ecoli.syldb")
+                .open("rb")
+            )
         else:
             handler = importlib.resources.open_binary(__package__, "ecoli.syldb")
         with handler as f:
