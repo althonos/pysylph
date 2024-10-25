@@ -7,7 +7,7 @@ PySylph |Stars|
 
 *PyO3 bindings and Python interface to* `sylph <https://github.com/bluenote-1577/sylph>`_, *an ultrafast method for containment ANI querying and taxonomic profiling.*
 
-|Actions| |Coverage| |PyPI| |Bioconda| |AUR| |Wheel| |Versions| |Implementations| |License| |Source| |Mirror| |Issues| |Docs| |Changelog| |Downloads| |Paper| |Citations|
+|Actions| |Coverage| |PyPI| |Bioconda| |AUR| |Wheel| |Versions| |Implementations| |License| |Source| |Mirror| |Issues| |Docs| |Changelog| |Downloads|
 
 .. |Actions| image:: https://img.shields.io/github/actions/workflow/status/althonos/pysylph/test.yml?branch=main&logo=github&style=flat-square&maxAge=300
    :target: https://github.com/althonos/pysylph/actions
@@ -53,12 +53,6 @@ PySylph |Stars|
 
 .. |Downloads| image:: https://img.shields.io/pypi/dm/pysylph?style=flat-square&color=303f9f&maxAge=86400&label=downloads
    :target: https://pepy.tech/project/pysylph
-
-.. |Paper| image:: https://img.shields.io/badge/paper-Bioinformatics-teal.svg?style=flat-square&maxAge=3600
-   :target: https://doi.org/10.1093/bioinformatics/btad214
-
-.. |Citations| image:: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbadge.dimensions.ai%2Fdetails%2Fid%2Fpub.1157360482%2Fmetadata.json&query=%24.times_cited&style=flat-square&label=citations&maxAge=86400
-   :target: https://badge.dimensions.ai/details/id/pub.1157360482
 
 
 Overview
@@ -127,103 +121,7 @@ Related Projects
 
 The following Python libraries may be of interest for bioinformaticians.
 
-.. grid:: 1 3 5 5
-   :gutter: 1
-
-   .. grid-item-card:: :fas:`diamond` PyHMMER
-      :link: https://pyhmmer.readthedocs.io
-
-      Profile Hidden Markov Models (with HMMER).
-
-   .. grid-item-card:: :fas:`fire` Pyrodigal
-      :link: https://pyrodigal.readthedocs.io
-
-      Prokaryotic Gene Finding (with Prodigal).
-
-   .. grid-item-card:: :fas:`virus-covid` Pyrodigal-gv
-      :link: https://github.com/althonos/pyrodigal-gv
-
-      Pyrodigal for Giant Viruses.
-
-   .. grid-item-card:: :fas:`align-center` PyFAMSA
-      :link: https://pyfamsa.readthedocs.io
-
-      Multiple Sequence Alignment (with FAMSA).
-
-   .. grid-item-card:: :fas:`scissors` PytrimAl
-      :link: https://pytrimal.readthedocs.io
-
-      Alignment Trimming (with trimAl).
-
-   .. grid-item-card:: :fas:`music` LightMotif
-      :link: https://lightmotif.readthedocs.io
-
-      Platform-accelerated motif scoring.
-
-   .. grid-item-card:: :fas:`knife;fa-custom` Diced
-      :link: https://diced.readthedocs.io
-
-      CRISPR Detection (with MinCED).
-
-   .. grid-item-card:: :fas:`table-cells` Scoring Matrices
-      :link: https://scoring-matrices.readthedocs.io
-
-      Scoring matrices for Cython.
-
-   .. grid-item-card:: :fas:`chain` Pyskani
-      :link: https://pyskani.readthedocs.io
-
-      Average Nucleotide Identity (with skani).
-
-   .. grid-item-card:: :fas:`forward-fast` PyFastANI
-      :link: https://pyfastani.readthedocs.io
-
-      Average Nucleotide Identity (with FastANI).
-
-   .. grid-item-card:: :fas:`magnifying-glass` PyJess
-      :link: https://pyjess.readthedocs.io
-
-      Geometric Template Matching (with Jess).
-
-   .. grid-item-card:: :fas:`repeat` PyTantan
-      :link: https://pytantan.readthedocs.io
-
-      Tandem Repeat Masking (with Tantan).
-
-   .. grid-item-card:: :fas:`gem` PyOpal
-      :link: https://pyopal.readthedocs.io
-
-      Query/Database Aligner (with Opal).
-
-   .. grid-item-card:: :fas:`sword;fa-custom` PySWRD
-      :link: https://pyswrd.readthedocs.io
-
-      Database Heuristic Filtering (with SWORD).
-
-   .. grid-item-card:: :fas:`rocket` Mini3di
-      :link: https://github.com/althonos/mini3di
-
-      Protein structure to 3di in pure Python.
-
-   .. grid-item-card:: :fas:`calculator` ``peptides.py``
-      :link: https://peptides.readthedocs.io
-
-      Peptide descriptors for Python.
-
-   .. grid-item-card:: :fas:`diagram-project` Pronto
-      :link: https://pronto.readthedocs.io
-
-      Open Biomedical Ontologies for Python.
-
-   .. grid-item-card:: :fas:`box` NAFcodec
-      :link: https://nafcodec.readthedocs.io
-
-      Nucleotide Archival Format for Python.
-
-   .. grid-item-card:: :fas:`bank` ``gb-io.py``
-      :link: https://gb-io.readthedocs.io
-
-      Fast GenBank parser for Python (with ``gb-io``).
+.. include:: related.rst
 
 
 License
@@ -234,8 +132,8 @@ It contains some code included verbatim from the the `sylph` source code, which
 was written by `Jim Shaw <https://jim-shaw-bluenote.github.io/>`_ and is distributed 
 under the terms of the `MIT License <https://choosealicense.com/licenses/mit/>`_
 as well. Source distributions of `pysylph` vendors additional sources under their 
-own terms using the [`cargo vendor`](https://doc.rust-lang.org/cargo/commands/cargo-vendor.html)
-command. See the :doc:`Copyright Notice <guide/copyright>` section for more information.
+own terms using the ``cargo vendor`` command. See the 
+:doc:`Copyright Notice <guide/copyright>` section for more information.
 
 *This project is in no way not affiliated, sponsored, or otherwise endorsed by
 the original* `sylph <https://github.com/bluenote-1577/sylph>`_ *authors. It was developed by*

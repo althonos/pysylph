@@ -13,6 +13,7 @@ import sys
 import re
 import shutil
 import semantic_version
+import urllib.request
 
 # -- Path setup --------------------------------------------------------------
 
@@ -25,6 +26,9 @@ project_dir = os.path.dirname(docssrc_dir)
 if os.getenv("READTHEDOCS", "False") != "True":
     sys.path.insert(0, project_dir)
 
+with urllib.request.urlopen("https://gist.githubusercontent.com/althonos/5d6bf5a512d64dc951c42a91d5fc3fb3/raw/related.rst") as src:
+    with open("related.rst", "wb") as dst:
+        shutil.copyfileobj(src, dst)
 
 # -- Project information -----------------------------------------------------
 
@@ -109,12 +113,7 @@ html_css_files = ["custom.css"]
 # documentation.
 #
 html_theme_options = {
-    "external_links": [
-        {
-            "url": "https://doi.org/10.1093/bioinformatics/btad214",
-            "name": "Paper",
-        },
-    ],
+    "external_links": [],
     "show_toc_level": 2,
     "use_edit_page_button": True,
     "icon_links": [
@@ -181,6 +180,7 @@ napoleon_use_rtype = False
 # -- Options for autodoc extension -------------------------------------------
 
 autoclass_content = "class"
+autoclass_signature = "separated"
 autodoc_member_order = 'groupwise'
 autosummary_generate = []
 autodoc_typehints = 'none'
@@ -190,8 +190,6 @@ autodoc_typehints = 'none'
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
-    "psutil": ("https://psutil.readthedocs.io/en/latest/", None),
-    "biopython": ("https://biopython.org/docs/latest/api/", None),
     "numpy": ("https://numpy.org/doc/stable/", None)
 }
 
