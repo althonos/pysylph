@@ -130,8 +130,8 @@ html_theme_options = {
     ],
     "logo": {
         "text": "PySylph",
-        # "image_light": "_images/logo.png",
-        # "image_dark": "_images/logo.png",
+        "image_light": "_images/logo.png",
+        "image_dark": "_images/logo.png",
     },
     "navbar_align": "left",
     "footer_start": ["copyright"],

@@ -1,5 +1,9 @@
-PySylph |Stars|
-===============
+|Logo| PySylph |Stars|
+======================
+
+.. |Logo| image:: /_images/logo.png
+   :scale: 40%
+   :class: dark-light
 
 .. |Stars| image:: https://img.shields.io/github/stars/althonos/pysylph.svg?style=social&maxAge=3600&label=Star
    :target: https://github.com/althonos/pysylph/stargazers
