@@ -31,7 +31,7 @@ framework, that provides bindings to `sylph`. It directly links to the
 `sylph` code, which has the following advantages over CLI wrappers:
 
 - **pre-built wheels**: `pysylph` is distributed on PyPI and features
-  pre-built wheels for common platforms, including x86-64 and Arm64 UNIX.
+  pre-built wheels for common platforms, including x86-64 and Arm64.
 - **single dependency**: If your software or your analysis pipeline is
   distributed as a Python package, you can add `pysylph` as a dependency to
   your project, and stop worrying about the `sylph` binary being present on

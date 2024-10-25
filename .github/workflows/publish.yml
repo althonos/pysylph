@@ -59,7 +59,7 @@ jobs:
         CIBW_ARCHS: x86_64
         CIBW_BUILD: 'cp*-macosx_x86_64'
         CIBW_ENVIRONMENT: CARGO_NET_GIT_FETCH_WITH_CLI=true MACOSX_DEPLOYMENT_TARGET=12.0
-        CIBW_TEST_SKIP: "*-macosx_arm64 *-macosx_universal2:arm64"
+        CIBW_TEST_SKIP: "*"
       with:
         output-dir: dist
     - uses: actions/upload-artifact@v4

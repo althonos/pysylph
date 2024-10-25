@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "pysylph"
 dynamic = ["version"]
-version = "0.1.0"
+version = "0.1.1"
 description = "PyO3 bindings and Python interface to sylph, an ultrafast method for containment ANI querying and taxonomic profiling."
 readme = 'README.md'
 requires-python = ">=3.7"

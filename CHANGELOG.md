@@ -6,7 +6,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/althonos/pysylph/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/althonos/pysylph/compare/v0.1.1...HEAD
+
+
+## [v0.1.1] - 2024-10-25
+[v0.1.1]: https://github.com/althonos/pysylph/compare/v0.1.0...v0.1.1
+
+### Added
+- Type annotations to `pysylph` module.
+- Sphinx documentation with API reference hosted on ReadTheDocs.
+
+### Fixed
+- Add missing `ProfileResult` class to the `pysylph.lib` module.
+
+### Changed
+- Implement reading sequence data using the buffer-protocol in `Sketcher` methods.
 
 
 ## [v0.1.0] - 2024-10-25
