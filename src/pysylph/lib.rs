@@ -26,6 +26,7 @@ mod pyfile;
 
 // --- Base --------------------------------------------------------------------
 
+/// A base sketch object.
 #[pyclass(module = "pysylph.lib", frozen, subclass)]
 pub struct Sketch;
 
@@ -274,6 +275,12 @@ impl<R: Read> std::iter::Iterator for DatabaseReader<R> {
     }
 }
 
+/// A database file.
+///
+/// This class can be used to load `GenomeSketch` objects iteratively from a
+/// database file instead of loading it entirely through the `Database.load`
+/// class method.
+///
 #[pyclass(module = "pysylph.lib")]
 pub struct DatabaseFile {
     reader: DatabaseReader<std::io::BufReader<std::fs::File>>,
@@ -411,7 +418,7 @@ impl SampleSketch {
 
 // --- ANIResult ---------------------------------------------------------------
 
-/// An ANI result.
+/// An querying result.
 #[pyclass(module = "pysylph.lib", frozen, subclass)]
 pub struct AniResult {
     // FIXME: currently works because of shitty unsafe code, ultimately this
@@ -458,6 +465,7 @@ impl AniResult {
     }
 }
 
+/// A profiling result.
 #[pyclass(module = "pysylph.lib", frozen, extends=AniResult)]
 pub struct ProfileResult {}
 
@@ -591,6 +599,20 @@ impl Sketcher {
         })
     }
 
+    /// Sketch a genome.
+    ///
+    /// Arguments:
+    ///     name (`str`): The name of the genome to sketch. In the ``sylph``
+    ///         binary, this is set as the filename of the genome file.
+    ///     contigs (iterable of `str` or byte buffer): The genome contigs
+    ///         to be sketched.
+    ///     profiling (`bool`): Set to `False` to disable the tracking of
+    ///         unsued k-mers, which is required for profiling. This will
+    ///         prevent the sketch from being used with `Profiler.profile`.
+    ///
+    /// Returns:
+    ///     `~pysylph.GenomeSketch`: The sketched genome.
+    ///
     #[pyo3(signature = (name, contigs, profiling=true))]
     fn sketch_genome<'py>(
         slf: PyRef<'py, Self>,
@@ -665,6 +687,17 @@ impl Sketcher {
         )
     }
 
+    /// Sketch a sampled composed of single-read sequences.
+    ///
+    /// Arguments:
+    ///     name (`str`): The name of the sample to sketch. In the ``sylph``
+    ///         binary, this is set as the filename of the genome file.
+    ///     reads (iterable of `str` or byte buffer): The sample reads
+    ///         to be sketched.
+    ///
+    /// Returns:
+    ///     `~pysylph.SampleSketch`: The sketched sample.
+    ///
     #[pyo3(signature = (name, reads))]
     fn sketch_single<'py>(
         slf: PyRef<'py, Self>,
@@ -766,6 +799,15 @@ impl Profiler {
         })
     }
 
+    /// Run an ANI containment query for the given sample.
+    ///
+    /// Arguments:
+    ///     sample (`~pysylph.SampleSketch`): The sketched sample to profile.
+    ///
+    /// Returns:
+    ///     `list` of `~pysylph.AniResult`: The list of hits found in the
+    ///     database for the sample.
+    ///
     #[pyo3(signature = (sample))]
     fn query<'py>(&self, sample: PyRef<'py, SampleSketch>) -> PyResult<Vec<Py<AniResult>>> {
         let py = sample.py();
@@ -859,6 +901,16 @@ impl Profiler {
             .collect()
     }
 
+    /// Build a taxonomic profile for the given sample.
+    ///
+    /// Arguments:
+    ///     sample (`~pysylph.SampleSketch`): The sketched sample to profile.
+    ///
+    /// Returns:
+    ///     `list` of `~pysylph.ProfileResult`: The list of hits found in
+    ///     the database for the sample, with abundance estimates in
+    ///     addition to coveraged-corrected ANI.
+    ///
     #[pyo3(signature = (sample))]
     fn profile<'py>(&self, sample: PyRef<'py, SampleSketch>) -> PyResult<Vec<Py<ProfileResult>>> {
         let py = sample.py();
