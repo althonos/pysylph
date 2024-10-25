@@ -1024,17 +1024,18 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
 
-    m.add_class::<Database>()?;
-    m.add_class::<DatabaseFile>()?;
-
     m.add_class::<Sketch>()?;
     m.add_class::<GenomeSketch>()?;
     m.add_class::<SampleSketch>()?;
+
+    m.add_class::<Database>()?;
+    m.add_class::<DatabaseFile>()?;
 
     m.add_class::<Sketcher>()?;
     m.add_class::<Profiler>()?;
 
     m.add_class::<AniResult>()?;
+    m.add_class::<ProfileResult>()?;
 
     Ok(())
 }
