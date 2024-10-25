@@ -529,29 +529,38 @@ impl SequenceData {
 
 impl<'py> FromPyObject<'py> for SequenceData {
     fn extract_bound(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
-        if let Ok(buffer) = PyBuffer::get_bound(&obj) {
-            if !buffer.is_c_contiguous() {
-                Err(PyValueError::new_err("expected C-contiguous buffer"))
-            } else if buffer.shape().len() != 1 {
-                Err(PyValueError::new_err("expected buffer of dimension 1"))
-            } else {
-                // NOTE(@althonos): Yes, this is unsafe because the Python
-                //                  object may be modified in parallel. We're
-                //                  gonna have to trust the user doesn't do
-                //                  weird shit with the sequence, but that's
-                //                  a trade-off so we can avoid copy data
-                //                  from the Python heap (or other Python
-                //                  extension objects).
-                let x = buffer
-                    .as_slice(obj.py())
-                    .ok_or_else(|| PyValueError::new_err("invalid buffer"))?;
-                let s = unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len()) };
-                Ok(SequenceData::Buffer(buffer, s))
-            }
-        } else if let Ok(s) = obj.extract::<PyBackedStr>() {
+        let py = obj.py();
+        if let Ok(s) = obj.extract::<PyBackedStr>() {
             Ok(SequenceData::BackedStr(s))
         } else {
-            Err(PyTypeError::new_err("expected string or byte buffer"))
+            match PyBuffer::get_bound(&obj) {
+                Ok(buffer) => {
+                    if !buffer.is_c_contiguous() {
+                        Err(PyValueError::new_err("expected C-contiguous buffer"))
+                    } else if buffer.shape().len() != 1 {
+                        Err(PyValueError::new_err("expected buffer of dimension 1"))
+                    } else {
+                        // NOTE(@althonos): Yes, this is unsafe because the Python
+                        //                  object may be modified in parallel. We're
+                        //                  gonna have to trust the user doesn't do
+                        //                  weird shit with the sequence, but that's
+                        //                  a trade-off so we can avoid copy data
+                        //                  from the Python heap (or other Python
+                        //                  extension objects).
+                        let x = buffer
+                            .as_slice(obj.py())
+                            .ok_or_else(|| PyValueError::new_err("invalid buffer"))?;
+                        let s =
+                            unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len()) };
+                        Ok(SequenceData::Buffer(buffer, s))
+                    }
+                }
+                Err(t) => {
+                    let e = PyTypeError::new_err("expected string or byte buffer");
+                    e.set_cause(py, Some(t));
+                    Err(e)
+                }
+            }
         }
     }
 }
