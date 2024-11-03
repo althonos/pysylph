@@ -186,7 +186,7 @@ jobs:
     permissions: write-all
     steps:
     - name: Checkout code
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
     - name: Release a Changelog
       uses: rasmus-saks/release-a-changelog-action@v1.2.0
       with:

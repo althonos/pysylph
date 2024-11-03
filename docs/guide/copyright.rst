@@ -4,7 +4,7 @@ Copyright Notice
 PySylph
 -------
 
-The PyHMMER library is developed under the MIT license:
+The PySylph library is developed under the MIT license:
 
 .. literalinclude:: ../../COPYING 
 
