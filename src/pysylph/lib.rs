@@ -15,6 +15,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::pybacked::PyBackedStr;
+use pyo3::types::PyDict;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
 use pyo3::types::PyType;
@@ -369,6 +370,17 @@ impl SampleSketch {
     #[getter]
     pub fn k(&self) -> usize {
         self.sketch.k
+    }
+
+    /// `dict`: A counter of k-mers in this sketch.
+    #[getter]
+    pub fn kmer_counts<'py>(slf: PyRef<'py, Self>) -> PyResult<Bound<'py, PyDict>> {
+        let py = slf.py();
+        let mapping = PyDict::new_bound(py);
+        for (kmer, count) in slf.sketch.kmer_counts.iter() {
+            mapping.set_item(kmer, count)?;
+        }
+        Ok(mapping)
     }
 
     /// Load a sequence sketch from a path.

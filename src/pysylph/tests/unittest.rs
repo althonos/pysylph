@@ -1,7 +1,6 @@
 extern crate pyo3;
 extern crate pysylph;
 
-use std::env::join_paths;
 use std::path::Path;
 
 use pyo3::prelude::*;
