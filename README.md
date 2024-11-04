@@ -20,7 +20,7 @@
 
 ## 🗺️ Overview
 
-`sylph` is a method developed by [Jim Shaw](https://jim-shaw-bluenote.github.io/)
+`sylph`[\[1\]](#ref1) is a method developed by [Jim Shaw](https://jim-shaw-bluenote.github.io/)
 and [Yun William Yu](https://github.com/yunwilliamyu) for fast and robust
 ANI querying or metagenomic profiling for metagenomic shotgun samples. It uses 
 a statistical model based on Poisson coverage to compute coverage-adjusted ANI
@@ -168,3 +168,7 @@ by the [original `sylph` authors](https://jim-shaw-bluenote.github.io/).
 It was developed by [Martin Larralde](https://github.com/althonos/) during his
 PhD project at the [Leiden University Medical Center](https://www.lumc.nl/en/)
 in the [Zeller team](https://github.com/zellerlab).*
+
+## 📚 References
+
+- <a id="ref1">\[1\]</a> Jim Shaw and Yun William Yu. Rapid species-level metagenome profiling and containment estimation with sylph (2024). Nature Biotechnology. [10.1038/s41587-024-02412-y](https://doi.org/10.1038/s41587-024-02412-y). [PMID:39379646](https://pubmed.ncbi.nlm.nih.gov/39379646)
