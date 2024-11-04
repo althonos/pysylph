@@ -687,7 +687,7 @@ impl Sketcher {
         )
     }
 
-    /// Sketch a sampled composed of single-read sequences.
+    /// Sketch a sample composed of single-read sequences.
     ///
     /// Arguments:
     ///     name (`str`): The name of the sample to sketch. In the ``sylph``
@@ -707,8 +707,6 @@ impl Sketcher {
         let py = slf.py();
 
         let mut kmer_map = std::collections::HashMap::default();
-        // let ref_file = &read_file;
-        // let reader = parse_fastx_file(&ref_file);
         let mut mean_read_length = 0.;
         let mut counter = 0usize;
         let mut kmer_to_pair_table = fxhash::FxHashSet::default();
@@ -747,6 +745,118 @@ impl Sketcher {
             c: slf.c,
             k: slf.k,
             paired: false,
+            sample_name: None,
+            mean_read_length,
+        };
+
+        Py::new(
+            py,
+            PyClassInitializer::new(SampleSketch::from(sketch), PyClassInitializer::from(Sketch)),
+        )
+    }
+
+    /// Sketch a sample composed of paired reads.
+    #[pyo3(signature = (name, r1, r2))]
+    fn sketch_paired<'py>(
+        slf: PyRef<'py, Self>,
+        name: String,
+        r1: Bound<'py, PyAny>,
+        r2: Bound<'py, PyAny>,
+    ) -> PyResult<Py<SampleSketch>> {
+        let py = slf.py();
+
+        let mut kmer_map = std::collections::HashMap::default();
+        let mut mean_read_length = 0.;
+        let mut counter = 0usize;
+        let mut kmer_pair_set = fxhash::FxHashSet::default();
+        let mut num_dup_removed = 0;
+
+        let dedup_fpr: f64 = 0.0; // FIXME
+        let mut fpr = 0.001;
+        if dedup_fpr != 0. {
+            fpr = dedup_fpr;
+        }
+        let mut kmer_pair_set_approx = scalable_cuckoo_filter::ScalableCuckooFilterBuilder::new()
+            .initial_capacity(1_000_000_0)
+            .false_positive_probability(fpr)
+            .hasher(fxhash::FxHasher::default())
+            .finish();
+
+        for (res1, res2) in r1.iter()?.zip(r2.iter()?) {
+            let r1 = res1?.extract::<SequenceData>()?;
+            let r2 = res2?.extract::<SequenceData>()?;
+
+            let seq1 = r1.as_bytes();
+            let seq2 = r2.as_bytes();
+
+            let mut vec1 = vec![];
+            let mut vec2 = vec![];
+
+            sylph::sketch::extract_markers(&seq1, &mut vec1, slf.c, slf.k);
+            sylph::sketch::extract_markers(&seq2, &mut vec2, slf.c, slf.k);
+            let kmer_pair = self::exports::sketch::pair_kmer(&seq1, &seq2);
+
+            //moving average
+            counter += 1;
+            mean_read_length += ((seq1.len() as f64) - mean_read_length) / counter as f64;
+
+            for km in vec1.iter() {
+                if dedup_fpr == 0. {
+                    self::exports::sketch::dup_removal_lsh_full_exact(
+                        &mut kmer_map,
+                        &mut kmer_pair_set,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        false, //no_dedup,
+                        None,
+                    );
+                } else {
+                    self::exports::sketch::dup_removal_lsh_full(
+                        &mut kmer_map,
+                        &mut kmer_pair_set_approx,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        false, // no_dedup,
+                    );
+                }
+            }
+            for km in vec2.iter() {
+                if vec1.contains(km) {
+                    continue;
+                }
+                if dedup_fpr == 0. {
+                    self::exports::sketch::dup_removal_lsh_full_exact(
+                        &mut kmer_map,
+                        &mut kmer_pair_set,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        false, // no_dedup,
+                        None,
+                    );
+                } else {
+                    self::exports::sketch::dup_removal_lsh_full(
+                        &mut kmer_map,
+                        &mut kmer_pair_set_approx,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        false, // no_dedup,
+                    );
+                }
+            }
+        }
+
+        // let percent = (num_dup_removed as f64)/((kmer_map.values().sum::<u32>() as f64) + num_dup_removed as f64) * 100.;
+
+        let sketch = sylph::types::SequencesSketch {
+            kmer_counts: kmer_map,
+            file_name: name,
+            c: slf.c,
+            k: slf.k,
+            paired: true,
             sample_name: None,
             mean_read_length,
         };

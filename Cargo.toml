@@ -17,6 +17,7 @@ fxhash = "0"
 statrs = "0.16"
 fastrand = "2"
 rayon = "1"
+scalable_cuckoo_filter = "0.2"
 
 [dependencies.serde]
 features = ["rc"]
