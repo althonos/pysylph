@@ -586,8 +586,8 @@ pub struct Sketcher {
 #[pymethods]
 impl Sketcher {
     #[new]
-    #[pyo3(signature = (c = 200, k = 31))]
-    pub fn __new__(c: usize, k: usize) -> PyResult<Self> {
+    #[pyo3(signature = (*, c = 200, k = 31, deduplicate = true, fpr = sylph::constants::DEFAULT_FPR))]
+    pub fn __new__(c: usize, k: usize, deduplicate: bool, fpr: f64) -> PyResult<Self> {
         if k != 21 && k != 31 {
             return Err(PyValueError::new_err(format!(
                 "invalid k: expected 21 or 31, got {}",
@@ -598,8 +598,8 @@ impl Sketcher {
             c,
             k,
             min_spacing: 30,
-            deduplicate: true,
-            fpr: sylph::constants::DEFAULT_FPR,
+            deduplicate,
+            fpr,
         })
     }
 
