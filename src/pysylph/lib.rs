@@ -579,6 +579,8 @@ pub struct Sketcher {
     c: usize,
     k: usize,
     min_spacing: usize,
+    deduplicate: bool,
+    fpr: f64,
 }
 
 #[pymethods]
@@ -596,6 +598,8 @@ impl Sketcher {
             c,
             k,
             min_spacing: 30,
+            deduplicate: true,
+            fpr: sylph::constants::DEFAULT_FPR,
         })
     }
 
@@ -730,7 +734,7 @@ impl Sketcher {
                     &km,
                     kmer_pair,
                     &mut num_dup_removed,
-                    false, //no_dedup,
+                    !slf.deduplicate,
                     Some(sylph::constants::MAX_DEDUP_COUNT),
                 );
             }
@@ -771,16 +775,16 @@ impl Sketcher {
         let mut kmer_pair_set = fxhash::FxHashSet::default();
         let mut num_dup_removed = 0;
 
-        let dedup_fpr: f64 = 0.0; // FIXME
-        let mut fpr = 0.001;
-        if dedup_fpr != 0. {
-            fpr = dedup_fpr;
-        }
-        let mut kmer_pair_set_approx = scalable_cuckoo_filter::ScalableCuckooFilterBuilder::new()
-            .initial_capacity(1_000_000_0)
-            .false_positive_probability(fpr)
-            .hasher(fxhash::FxHasher::default())
-            .finish();
+        let mut kmer_pair_set_approx = match slf.fpr {
+            0.0 => None,
+            x => Some(
+                scalable_cuckoo_filter::ScalableCuckooFilterBuilder::new()
+                    .initial_capacity(1_000_000_0)
+                    .false_positive_probability(x)
+                    .hasher(fxhash::FxHasher::default())
+                    .finish(),
+            ),
+        };
 
         for (res1, res2) in r1.iter()?.zip(r2.iter()?) {
             let r1 = res1?.extract::<SequenceData>()?;
@@ -801,24 +805,24 @@ impl Sketcher {
             mean_read_length += ((seq1.len() as f64) - mean_read_length) / counter as f64;
 
             for km in vec1.iter() {
-                if dedup_fpr == 0. {
+                if let Some(mut approx) = kmer_pair_set_approx.as_mut() {
+                    self::exports::sketch::dup_removal_lsh_full(
+                        &mut kmer_map,
+                        &mut approx,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        !slf.deduplicate,
+                    );
+                } else {
                     self::exports::sketch::dup_removal_lsh_full_exact(
                         &mut kmer_map,
                         &mut kmer_pair_set,
                         km,
                         kmer_pair,
                         &mut num_dup_removed,
-                        false, //no_dedup,
+                        !slf.deduplicate,
                         None,
-                    );
-                } else {
-                    self::exports::sketch::dup_removal_lsh_full(
-                        &mut kmer_map,
-                        &mut kmer_pair_set_approx,
-                        km,
-                        kmer_pair,
-                        &mut num_dup_removed,
-                        false, // no_dedup,
                     );
                 }
             }
@@ -826,30 +830,28 @@ impl Sketcher {
                 if vec1.contains(km) {
                     continue;
                 }
-                if dedup_fpr == 0. {
+                if let Some(mut approx) = kmer_pair_set_approx.as_mut() {
+                    self::exports::sketch::dup_removal_lsh_full(
+                        &mut kmer_map,
+                        &mut approx,
+                        km,
+                        kmer_pair,
+                        &mut num_dup_removed,
+                        !slf.deduplicate,
+                    );
+                } else {
                     self::exports::sketch::dup_removal_lsh_full_exact(
                         &mut kmer_map,
                         &mut kmer_pair_set,
                         km,
                         kmer_pair,
                         &mut num_dup_removed,
-                        false, // no_dedup,
+                        !slf.deduplicate,
                         None,
-                    );
-                } else {
-                    self::exports::sketch::dup_removal_lsh_full(
-                        &mut kmer_map,
-                        &mut kmer_pair_set_approx,
-                        km,
-                        kmer_pair,
-                        &mut num_dup_removed,
-                        false, // no_dedup,
                     );
                 }
             }
         }
-
-        // let percent = (num_dup_removed as f64)/((kmer_map.values().sum::<u32>() as f64) + num_dup_removed as f64) * 100.;
 
         let sketch = sylph::types::SequencesSketch {
             kmer_counts: kmer_map,
@@ -860,7 +862,6 @@ impl Sketcher {
             sample_name: None,
             mean_read_length,
         };
-
         Py::new(
             py,
             PyClassInitializer::new(SampleSketch::from(sketch), PyClassInitializer::from(Sketch)),
