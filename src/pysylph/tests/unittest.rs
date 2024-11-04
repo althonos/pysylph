@@ -1,6 +1,7 @@
 extern crate pyo3;
 extern crate pysylph;
 
+use std::env::join_paths;
 use std::path::Path;
 
 use pyo3::prelude::*;
@@ -19,7 +20,8 @@ pub fn main() -> PyResult<()> {
         .parent()
         .unwrap()
         .parent()
-        .unwrap();
+        .unwrap()
+        .join("src");
 
     // spawn a Python interpreter
     pyo3::prepare_freethreaded_python();
