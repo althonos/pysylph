@@ -34,19 +34,19 @@ one is available, or from source after compiling the Rust code :
 ..      $ conda install -c bioconda pysylph
 
 
-.. Arch User Repository
-.. ^^^^^^^^^^^^^^^^^^^^
+Arch User Repository
+^^^^^^^^^^^^^^^^^^^^
 
-.. A package recipe for Arch Linux can be found in the Arch User Repository
-.. under the name `python-pysylph <https://aur.archlinux.org/packages/python-pysylph>`_.
-.. It will always match the latest release from PyPI.
+A package recipe for Arch Linux can be found in the Arch User Repository
+under the name `python-pysylph <https://aur.archlinux.org/packages/python-pysylph>`_.
+It will always match the latest release from PyPI.
 
-.. Steps to install on ArchLinux depend on your `AUR helper <https://wiki.archlinux.org/title/AUR_helpers>`_
-.. (``yaourt``, ``aura``, ``yay``, etc.). For ``aura``, you'll need to run:
+Steps to install on ArchLinux depend on your `AUR helper <https://wiki.archlinux.org/title/AUR_helpers>`_
+(``yaourt``, ``aura``, ``yay``, etc.). For ``aura``, you'll need to run:
 
-.. .. code:: console
+.. code:: console
 
-..     $ aura -A python-pysylph
+    $ aura -A python-pysylph
 
 
 .. BioArchLinux
@@ -68,19 +68,19 @@ one is available, or from source after compiling the Rust code :
 ..     $ pacman -S python-pysylph
 
 
-.. Piwheels
-.. ^^^^^^^^
+Piwheels
+^^^^^^^^
 
-.. PySylph works on Raspberry Pi computers, and pre-built wheels are compiled 
-.. for `armv7l` on `piwheels <https://www.piwheels.org/project/pysylph/>`_.
-.. Run the following command to install these instead of compiling from source:
+PySylph works on Raspberry Pi computers, and pre-built wheels are compiled 
+for `armv7l` on `piwheels <https://www.piwheels.org/project/pysylph/>`_.
+Run the following command to install these instead of compiling from source:
 
-.. .. code:: console
+.. code:: console
 
-..    $ pip3 install pysylph --extra-index-url https://www.piwheels.org/simple
+   $ pip3 install pysylph --extra-index-url https://www.piwheels.org/simple
 
-.. Check the `piwheels documentation <https://www.piwheels.org/faq.html>`_ for 
-.. more information.
+Check the `piwheels documentation <https://www.piwheels.org/faq.html>`_ for 
+more information.
 
 
 GitHub + ``pip``
