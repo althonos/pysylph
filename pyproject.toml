@@ -36,7 +36,8 @@ classifiers = [
 ]
 
 [project.urls]
-# "Documentation" = "https://pysylph.readthedocs.io"
+"Homepage" = "https://github.com/althonos/pysylph/"
+"Documentation" = "https://pysylph.readthedocs.io"
 "Bug Tracker" = "https://github.com/althonos/pysylph/issues"
 "Changelog" = "https://github.com/althonos/pysylph/blob/master/CHANGELOG.md"
 # "Coverage" = "https://codecov.io/gh/althonos/pysylph/"
