@@ -772,6 +772,20 @@ impl Sketcher {
     }
 
     /// Sketch a sample composed of paired reads.
+    ///
+    /// Arguments:
+    ///     name (`str`): The name of the sample to sketch. In the ``sylph``
+    ///         binary, this is set as the filename of the genome file.
+    ///     r1 (iterable of `str` or byte buffer): The first sequences
+    ///         for paired end reads to be sketched.
+    ///     r2 (iterable of `str` or byte buffer): The second sequences
+    ///         for paired end reads to be sketched.
+    ///
+    /// Returns:
+    ///     `~pysylph.SampleSketch`: The sketched sample.
+    ///
+    /// .. versionadded:: 0.1.2
+    ///
     #[pyo3(signature = (name, r1, r2))]
     fn sketch_paired<'py>(
         slf: PyRef<'py, Self>,
