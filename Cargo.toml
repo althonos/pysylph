@@ -4,6 +4,12 @@ version = "0.1.1"
 edition = "2021"
 authors = ["Martin Larralde <martin.larralde@embl.de>"]
 license = "MIT"
+description = "PyO3 bindings and Python interface to sylph, an ultrafast method for containment ANI querying and taxonomic profiling."
+repository = "https://github.com/althonos/pysylph"
+homepage = "https://github.com/althonos/pysylph/"
+readme = "README.md"
+categories = ["science"]
+keywords = ["bioinformatics", "genomics", "ani", "taxonomy", "profiling"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
