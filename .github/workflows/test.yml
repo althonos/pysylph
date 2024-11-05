@@ -52,15 +52,12 @@ jobs:
 
   test_macos:
     name: Test (MacOS)
-    runs-on: macos-12
+    runs-on: macos-latest
     env:
       OS: MacOS
     strategy:
       matrix:
         include:
-        - python-version: 3.7
-          python-release: v3.7
-          python-impl: CPython
         - python-version: 3.8
           python-release: v3.8
           python-impl: CPython
