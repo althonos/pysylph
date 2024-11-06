@@ -20,7 +20,6 @@ use pyo3::types::PyList;
 use pyo3::types::PyString;
 use pyo3::types::PyType;
 use rayon::prelude::*;
-use sylph::types::SequencesSketch;
 
 mod exports;
 mod pyfile;
@@ -348,12 +347,6 @@ impl From<sylph::types::SequencesSketch> for SampleSketch {
     }
 }
 
-impl From<sylph::types::SequencesSketchEncode> for SampleSketch {
-    fn from(sketch: sylph::types::SequencesSketchEncode) -> Self {
-        Self::from(SequencesSketch::from_enc(sketch))
-    }
-}
-
 #[pymethods]
 impl SampleSketch {
     pub fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<String> {
@@ -389,7 +382,7 @@ impl SampleSketch {
     fn load<'py>(cls: &Bound<'py, PyType>, file: &Bound<'py, PyAny>) -> PyResult<Py<Self>> {
         let py = cls.py();
         // attempt to extract a path, or fall back to reader
-        let result: Result<sylph::types::SequencesSketchEncode, _> = if let Ok(s) = py
+        let result: Result<sylph::types::SequencesSketch, _> = if let Ok(s) = py
             .import_bound(pyo3::intern!(py, "os"))?
             .call_method1(pyo3::intern!(py, "fsdecode"), (file,))
         {
