@@ -4,9 +4,13 @@ extern crate statrs;
 extern crate sylph;
 
 use std::io::Read;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use bincode::de::read::IoReader;
+use bincode::Options;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIndexError;
 use pyo3::exceptions::PyNotImplementedError;
@@ -233,42 +237,86 @@ impl Database {
 
 // --- Database Reader ---------------------------------------------------------
 
-struct DatabaseReader<R: Read> {
-    reader: bincode::de::Deserializer<
-        IoReader<R>,
-        bincode::config::WithOtherTrailing<
-            bincode::config::WithOtherIntEncoding<
-                bincode::config::DefaultOptions,
-                bincode::config::FixintEncoding,
-            >,
-            bincode::config::AllowTrailing,
-        >,
-    >,
+struct Producer<B> {
+    reader: Option<B>,
+    sender: Option<Sender<Option<Result<sylph::types::GenomeSketch, bincode::Error>>>>,
+    alive: Arc<AtomicBool>,
     length: usize,
+    handle: Option<std::thread::JoinHandle<()>>,
 }
 
-impl<R: Read> DatabaseReader<R> {
-    fn new(r: R) -> Result<Self, bincode::Error> {
-        use bincode::Options;
+impl<B: Read + Send + 'static> Producer<B> {
+    fn new(
+        reader: B,
+        sender: Sender<Option<Result<sylph::types::GenomeSketch, bincode::Error>>>,
+    ) -> Self {
+        Self {
+            reader: Some(reader),
+            sender: Some(sender),
+            handle: None,
+            length: 0,
+            alive: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn start(&mut self) -> Result<(), bincode::Error> {
+        self.alive.store(true, Ordering::SeqCst);
+
+        let alive = self.alive.clone();
+        let sender = self.sender.take().unwrap();
+        let r = self.reader.take().unwrap();
+
         let mut reader = bincode::de::Deserializer::with_reader(
             r,
             bincode::config::DefaultOptions::new()
                 .with_fixint_encoding()
                 .allow_trailing_bytes(),
         );
-        let length: usize = serde::Deserialize::deserialize(&mut reader).unwrap_or(0);
-        Ok(Self { reader, length })
+        let length: usize = serde::Deserialize::deserialize(&mut reader)?;
+        self.length = length;
+
+        self.handle = Some(std::thread::spawn(move || {
+            for _ in 0..length {
+                if !alive.load(Ordering::SeqCst) {
+                    break;
+                }
+                use serde::Deserialize;
+                let item = sylph::types::GenomeSketch::deserialize(&mut reader);
+                sender.send(Some(item)).unwrap();
+            }
+            alive.store(false, Ordering::SeqCst);
+        }));
+
+        Ok(())
+    }
+
+    fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
     }
 }
 
-impl<R: Read> std::iter::Iterator for DatabaseReader<R> {
+struct DatabaseReader<R: Read> {
+    producer: Producer<R>,
+    receiver: Receiver<Option<Result<sylph::types::GenomeSketch, bincode::Error>>>,
+}
+
+impl<R: Read + Send + 'static> DatabaseReader<R> {
+    fn new(r: R, capacity: usize) -> Result<Self, bincode::Error> {
+        let (sender, receiver) = match capacity {
+            0 => crossbeam_channel::unbounded(),
+            other => crossbeam_channel::bounded(other),
+        };
+        let mut producer = Producer::new(r, sender);
+        producer.start()?;
+        Ok(Self { producer, receiver })
+    }
+}
+
+impl<R: Read + Send + 'static> std::iter::Iterator for DatabaseReader<R> {
     type Item = Result<sylph::types::GenomeSketch, bincode::Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.length > 0 {
-            use serde::Deserialize;
-            let item = sylph::types::GenomeSketch::deserialize(&mut self.reader).unwrap();
-            self.length -= 1;
-            Some(Ok(item))
+        if self.producer.is_alive() {
+            self.receiver.recv().unwrap()
         } else {
             None
         }
@@ -289,15 +337,16 @@ pub struct DatabaseFile {
 #[pymethods]
 impl DatabaseFile {
     #[new]
-    fn __new__(path: &str) -> PyResult<Self> {
+    #[pyo3(signature = (path, capacity = 512))]
+    fn __new__(path: &str, capacity: usize) -> PyResult<Self> {
         let f = std::fs::File::open(path).map(std::io::BufReader::new)?;
-        let reader = DatabaseReader::new(f).unwrap();
+        let reader = DatabaseReader::new(f, capacity).unwrap();
         Ok(Self { reader })
     }
 
-    fn __len__(&self) -> usize {
-        self.reader.length
-    }
+    // fn __len__(&self) -> usize {
+    //     self.reader.length
+    // }
 
     fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
         slf

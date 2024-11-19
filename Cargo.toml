@@ -35,6 +35,9 @@ git = "https://github.com/bluenote-1577/sylph"
 tag = "v0.7.0"
 # path = "vendor/sylph"
 
+[dependencies.crossbeam-channel]
+version = "0.5.8"
+
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
