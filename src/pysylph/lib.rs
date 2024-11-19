@@ -3,6 +3,7 @@ extern crate pyo3;
 extern crate statrs;
 extern crate sylph;
 
+use std::borrow::BorrowMut;
 use std::io::Read;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -276,7 +277,7 @@ impl<B: Read + Send + 'static> Producer<B> {
         self.length = length;
 
         self.handle = Some(std::thread::spawn(move || {
-            for _ in 0..length {
+            for i in 0..length {
                 if !alive.load(Ordering::SeqCst) {
                     break;
                 }
@@ -937,7 +938,7 @@ impl Sketcher {
     }
 }
 
-// --- Functions ---------------------------------------------------------------
+// --- Profiler ----------------------------------------------------------------
 
 /// A ``sylph`` profiler.
 #[pyclass(module = "pysylph.lib", frozen)]
@@ -1245,6 +1246,192 @@ impl Profiler {
     }
 }
 
+/// A ``sylph`` profiler.
+#[pyclass(module = "pysylph.lib", frozen)]
+pub struct FileProfiler {
+    minimum_ani: Option<f64>,
+    seq_id: Option<f64>,
+    estimate_unknown: bool,
+    min_number_kmers: usize,
+    #[pyo3(get)]
+    path: Py<PyAny>,
+}
+
+#[pymethods]
+impl FileProfiler {
+    #[new]
+    #[pyo3(signature = (path, *, minimum_ani = None, seq_id = None, estimate_unknown = false, min_number_kmers = 50))]
+    pub fn __new__<'py>(
+        path: Py<PyAny>,
+        minimum_ani: Option<f64>,
+        seq_id: Option<f64>,
+        estimate_unknown: bool,
+        min_number_kmers: usize,
+    ) -> PyResult<Self> {
+        if let Some(m) = minimum_ani {
+            if m < 0.0 || m > 100.0 {
+                return Err(PyValueError::new_err(format!(
+                    "invalid value for minimum_ani: {}",
+                    m
+                )));
+            }
+        }
+        Ok(Self {
+            minimum_ani,
+            path,
+            estimate_unknown,
+            seq_id,
+            min_number_kmers,
+        })
+    }
+
+    /// Run an ANI containment query for the given sample.
+    ///
+    /// Arguments:
+    ///     sample (`~pysylph.SampleSketch`): The sketched sample to profile.
+    ///
+    /// Returns:
+    ///     `list` of `~pysylph.AniResult`: The list of hits found in the
+    ///     database for the sample.
+    ///
+    #[pyo3(signature = (sample))]
+    fn query<'py>(&self, sample: PyRef<'py, SampleSketch>) -> PyResult<Vec<Py<AniResult>>> {
+        let py = sample.py();
+
+        let path = py
+            .import_bound(pyo3::intern!(py, "os"))?
+            .call_method1(pyo3::intern!(py, "fsdecode"), (&self.path,))?;
+
+        let reader = std::fs::File::open(path.downcast::<PyString>()?.to_str()?)
+            .map(std::io::BufReader::new)
+            .map(|f| DatabaseReader::new(f, 512).unwrap())?;
+
+        let args = sylph::cmdline::ContainArgs {
+            minimum_ani: self.minimum_ani,
+            files: Default::default(),
+            file_list: Default::default(),
+            min_count_correct: 3.0,
+            min_number_kmers: self.min_number_kmers as f64,
+            threads: 3,
+            sample_threads: None,
+            trace: false,
+            debug: false,
+            estimate_unknown: self.estimate_unknown,
+            seq_id: self.seq_id,
+            redundant_ani: 99.0,
+            first_pair: Default::default(),
+            second_pair: Default::default(),
+            c: 200,
+            k: 3,
+            individual: false,
+            min_spacing_kmer: 30,
+            out_file_name: None,
+            log_reassignments: false,
+            pseudotax: false,
+            ratio: false,
+            mme: false,
+            mle: false,
+            nb: false,
+            no_ci: false,
+            no_adj: false,
+            mean_coverage: false,
+        };
+
+        // estimate sample kmer identity
+        let kmer_id_opt = if let Some(x) = args.seq_id {
+            Some(x.powf(sample.sketch.k as f64))
+        } else {
+            self::exports::contain::get_kmer_identity(&sample.sketch, args.estimate_unknown)
+        };
+
+        // extract all matching kmers
+        let sample_sketch = &sample.sketch;
+        let database_sketches = std::sync::RwLock::new(std::collections::LinkedList::new());
+
+        // let database_sketches = &database.sketches;
+        let mut stats = py.allow_threads(|| {
+            reader
+                .par_bridge()
+                .flat_map_iter(|result| {
+                    let sketch = result.unwrap(); // FIXME
+                    if let Some(item) = self::exports::contain::get_stats(
+                        &args,
+                        &sketch,
+                        &sample_sketch,
+                        None,
+                        false,
+                    ) {
+                        database_sketches.write().unwrap().push_back(sketch.clone());
+                        Some(sylph::types::AniResult {
+                            naive_ani: item.naive_ani,
+                            final_est_ani: item.final_est_ani,
+                            final_est_cov: item.final_est_cov,
+                            seq_name: item.seq_name,
+                            mean_cov: item.mean_cov,
+                            median_cov: item.median_cov,
+                            containment_index: item.containment_index,
+                            lambda: item.lambda,
+                            ani_ci: item.ani_ci,
+                            lambda_ci: item.lambda_ci,
+                            // genome_sketch: item.genome_sketch,
+                            genome_sketch: unsafe {
+                                std::mem::transmute(
+                                    database_sketches.read().unwrap().back().unwrap(),
+                                )
+                            },
+                            rel_abund: item.rel_abund,
+                            seq_abund: item.seq_abund,
+                            kmers_lost: item.kmers_lost,
+                            gn_name: "",
+                            contig_name: "",
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        });
+
+        // estimate true coverage
+        self::exports::contain::estimate_true_cov(
+            &mut stats,
+            kmer_id_opt,
+            args.estimate_unknown,
+            sample.sketch.mean_read_length,
+            sample.sketch.k,
+        );
+
+        // sort by ANI
+        // if pseudotax {} else {
+        stats.sort_by(|x, y| y.final_est_ani.partial_cmp(&x.final_est_ani).unwrap());
+        // }
+
+        // Ok(())
+        stats
+            .into_iter()
+            .map(|r| {
+                let sketches = database_sketches.read().unwrap();
+                let sketch = sketches
+                    .iter()
+                    .find(|x| r.genome_sketch.file_name == x.file_name)
+                    .unwrap();
+                let genome = Py::new(
+                    py,
+                    PyClassInitializer::from(Sketch)
+                        .add_subclass(GenomeSketch::from(sketch.clone())),
+                )?;
+                Py::new(
+                    py,
+                    PyClassInitializer::from(AniResult {
+                        result: unsafe { std::mem::transmute(r) },
+                        genome,
+                    }),
+                )
+            })
+            .collect()
+    }
+}
+
 // --- Initializer -------------------------------------------------------------
 
 /// PyO3 bindings to ``sylph``, an ultrafast taxonomic profiler.
@@ -1264,6 +1451,7 @@ pub fn init(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
 
     m.add_class::<Sketcher>()?;
     m.add_class::<Profiler>()?;
+    m.add_class::<FileProfiler>()?;
 
     m.add_class::<AniResult>()?;
     m.add_class::<ProfileResult>()?;
