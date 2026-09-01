@@ -55,7 +55,7 @@
 .. |Changelog| image:: https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square
    :target: https://github.com/althonos/pysylph/blob/master/CHANGELOG.md
 
-.. |Downloads| image:: https://img.shields.io/pypi/dm/pysylph?style=flat-square&color=303f9f&maxAge=86400&label=downloads
+.. |Downloads| image:: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2Fpysylph&search=downloaded%20(%5B0-9%2C.%20kM%5D%2B)%20times&replace=%241&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400
    :target: https://pepy.tech/project/pysylph
 
 
