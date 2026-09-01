@@ -970,6 +970,8 @@ impl Profiler {
             no_ci: false,
             no_adj: false,
             mean_coverage: false,
+            estimate_read_counts: false,
+            reads: Default::default(),
         };
 
         // estimate sample kmer identity
@@ -1073,6 +1075,8 @@ impl Profiler {
             no_ci: false,
             no_adj: false,
             mean_coverage: false,
+            estimate_read_counts: false,
+            reads: Default::default(),
         };
 
         // estimate sample kmer identity
