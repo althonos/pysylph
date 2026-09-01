@@ -47,7 +47,7 @@ classifiers = [
 
 [tool.maturin]
 manifest-path = "Cargo.toml"
-features = ["extension-module", "abi3"]
+features = ["extension-module"]
 python-source = "src"
 module-name = "pysylph.lib"
 
@@ -56,11 +56,18 @@ skip = ["*-musllinux_i686"]
 before-build = "pip install maturin"
 test-command = "python -m unittest pysylph.tests -v"
 build-verbosity = 1
-free-threaded-support = false
 
 [tool.cibuildwheel.linux]
 environment = { PATH="$PATH:$HOME/.cargo/bin" }
 before-all = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y"
+
+[[tool.cibuildwheel.overrides]]
+select = "cp31*"
+config-settings.maturin.build-args = '--features abi3'
+
+[[tool.cibuildwheel.overrides]]
+select = "cp310"
+config-settings.maturin.build-args = ''
 
 [tool.coverage.report]
 show_missing = true
