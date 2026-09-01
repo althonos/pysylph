@@ -17,7 +17,7 @@ path = "src/pysylph/lib.rs"
 doctest = false
 
 [dependencies]
-pyo3 = "0.22.5"
+pyo3 = "0.29.0"
 bincode = "1"
 fxhash = "0"
 statrs = "0.16"

@@ -23,27 +23,25 @@ pub fn main() -> PyResult<()> {
         .join("src");
 
     // spawn a Python interpreter
-    pyo3::prepare_freethreaded_python();
-    Python::with_gil(|py| {
+    Python::initialize();
+    Python::attach(|py| {
         // insert the project folder in `sys.modules` so that
         // the main module can be imported by Python
-        let sys = py.import_bound("sys")?;
-        sys.getattr("path")?
-            .downcast::<PyList>()?
-            .insert(0, folder)?;
+        let sys = py.import("sys")?;
+        sys.getattr("path")?.cast::<PyList>()?.insert(0, folder)?;
 
         // create a Python module from our rust code with debug symbols
-        let module = PyModule::new_bound(py, "pysylph.lib")?;
+        let module = PyModule::new(py, "pysylph.lib")?;
         pysylph::init(py, module.clone()).unwrap();
         sys.getattr("modules")?
-            .downcast::<PyDict>()?
+            .cast::<PyDict>()?
             .set_item("pysylph.lib", &module)?;
 
         // run unittest on the tests
-        let kwargs = PyDict::new_bound(py);
+        let kwargs = PyDict::new(py);
         kwargs.set_item("exit", false).unwrap();
         kwargs.set_item("verbosity", 2u8).unwrap();
-        py.import_bound("unittest").unwrap().call_method(
+        py.import("unittest").unwrap().call_method(
             "TestProgram",
             ("pysylph.tests",),
             Some(&kwargs),

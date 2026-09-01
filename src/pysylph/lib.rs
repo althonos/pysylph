@@ -109,8 +109,8 @@ impl GenomeSketch {
 
     /// `list` of `int`: The list of k-mers extracted from the genome.
     #[getter]
-    pub fn kmers<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
-        PyList::new_bound(py, &self.sketch.genome_kmers)
+    pub fn kmers<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        PyList::new(py, &self.sketch.genome_kmers)
     }
 }
 
@@ -148,7 +148,7 @@ impl Database {
     pub fn __new__<'py>(items: Option<Bound<'py, PyAny>>) -> PyResult<Self> {
         let mut db = Self::default();
         if let Some(sketches) = items {
-            for object in sketches.iter()? {
+            for object in sketches.try_iter()? {
                 let sketch: PyRef<'py, GenomeSketch> = object?.extract()?;
                 db.sketches.push(sketch.sketch.clone());
             }
@@ -196,10 +196,10 @@ impl Database {
         let py = cls.py();
         // attempt to extract a path, or fall back to reader
         let result: Result<Vec<Arc<sylph::types::GenomeSketch>>, _> = if let Ok(s) = py
-            .import_bound(pyo3::intern!(py, "os"))?
+            .import(pyo3::intern!(py, "os"))?
             .call_method1(pyo3::intern!(py, "fsdecode"), (file,))
         {
-            let path = s.downcast::<PyString>()?;
+            let path = s.cast::<PyString>()?;
             let f = std::fs::File::open(path.to_str()?)?;
             let reader = std::io::BufReader::new(f);
             bincode::deserialize_from(reader)
@@ -213,7 +213,6 @@ impl Database {
             Ok(sketches) => Ok(Database::from(sketches)),
             Err(e) => match *e {
                 bincode::ErrorKind::Io(io) => Err(io.into()),
-                bincode::ErrorKind::InvalidUtf8Encoding(e) => Err(e.into()),
                 other => Err(PyValueError::new_err(format!(
                     "failed to load db: {:?}",
                     other
@@ -303,9 +302,9 @@ impl DatabaseFile {
         slf
     }
 
-    fn __next__(&mut self) -> PyResult<Option<Py<GenomeSketch>>> {
-        let py = unsafe { Python::assume_gil_acquired() };
-        match self.reader.next() {
+    fn __next__<'py>(mut slf: PyRefMut<'py, Self>) -> PyResult<Option<Py<GenomeSketch>>> {
+        let py = slf.py();
+        match slf.reader.next() {
             Some(Err(e)) => Err(PyRuntimeError::new_err(e.to_string())),
             None => Ok(None),
             Some(Ok(item)) => Some(Py::new(
@@ -369,7 +368,7 @@ impl SampleSketch {
     #[getter]
     pub fn kmer_counts<'py>(slf: PyRef<'py, Self>) -> PyResult<Bound<'py, PyDict>> {
         let py = slf.py();
-        let mapping = PyDict::new_bound(py);
+        let mapping = PyDict::new(py);
         for (kmer, count) in slf.sketch.kmer_counts.iter() {
             mapping.set_item(kmer, count)?;
         }
@@ -383,10 +382,10 @@ impl SampleSketch {
         let py = cls.py();
         // attempt to extract a path, or fall back to reader
         let result: Result<sylph::types::SequencesSketch, _> = if let Ok(s) = py
-            .import_bound(pyo3::intern!(py, "os"))?
+            .import(pyo3::intern!(py, "os"))?
             .call_method1(pyo3::intern!(py, "fsdecode"), (file,))
         {
-            let path = s.downcast::<PyString>()?;
+            let path = s.cast::<PyString>()?;
             let f = std::fs::File::open(path.to_str()?)?;
             let reader = std::io::BufReader::new(f);
             bincode::deserialize_from(reader)
@@ -403,7 +402,6 @@ impl SampleSketch {
             ),
             Err(e) => match *e {
                 bincode::ErrorKind::Io(io) => Err(io.into()),
-                bincode::ErrorKind::InvalidUtf8Encoding(e) => Err(e.into()),
                 other => Err(PyValueError::new_err(format!(
                     "failed to load db: {:?}",
                     other
@@ -540,13 +538,14 @@ impl SequenceData {
     }
 }
 
-impl<'py> FromPyObject<'py> for SequenceData {
-    fn extract_bound(obj: &Bound<'py, PyAny>) -> PyResult<Self> {
+impl<'py, 'a> FromPyObject<'py, 'a> for SequenceData {
+    type Error = PyErr;
+    fn extract(obj: Borrowed<'py, 'a, PyAny>) -> PyResult<Self> {
         let py = obj.py();
         if let Ok(s) = obj.extract::<PyBackedStr>() {
             Ok(SequenceData::BackedStr(s))
         } else {
-            match PyBuffer::get_bound(&obj) {
+            match PyBuffer::get(&obj) {
                 Ok(buffer) => {
                     if !buffer.is_c_contiguous() {
                         Err(PyValueError::new_err("expected C-contiguous buffer"))
@@ -642,12 +641,12 @@ impl Sketcher {
 
         // extract records
         let sequences = contigs
-            .iter()?
+            .try_iter()?
             .map(|r| r?.extract::<SequenceData>())
             .collect::<PyResult<Vec<_>>>()?;
 
         // sketch all records while allowing parallel code
-        py.allow_threads(|| {
+        py.detach(|| {
             // extract candidate kmers
             let mut markers = Vec::new();
             for (index, sequence) in sequences.iter().enumerate() {
@@ -721,7 +720,7 @@ impl Sketcher {
         let mut kmer_to_pair_table = fxhash::FxHashSet::default();
         let mut num_dup_removed = 0;
 
-        for result in reads.iter()? {
+        for result in reads.try_iter()? {
             let read = result?.extract::<SequenceData>()?;
             let seq = read.as_bytes();
 
@@ -805,7 +804,7 @@ impl Sketcher {
             ),
         };
 
-        for (res1, res2) in r1.iter()?.zip(r2.iter()?) {
+        for (res1, res2) in r1.try_iter()?.zip(r2.try_iter()?) {
             let r1 = res1?.extract::<SequenceData>()?;
             let r2 = res2?.extract::<SequenceData>()?;
 
@@ -983,7 +982,7 @@ impl Profiler {
         // extract all matching kmers
         let sample_sketch = &sample.sketch;
         let database_sketches = &database.sketches;
-        let mut stats = py.allow_threads(|| {
+        let mut stats = py.detach(|| {
             database_sketches
                 .par_iter()
                 .flat_map_iter(|sketch| {
@@ -1086,7 +1085,7 @@ impl Profiler {
         // extract all matching kmers
         let sample_sketch = &sample.sketch;
         let database_sketches = &database.sketches;
-        let mut stats = py.allow_threads(|| {
+        let mut stats = py.detach(|| {
             database_sketches
                 .par_iter()
                 .flat_map_iter(|sketch| {
