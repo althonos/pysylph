@@ -10,8 +10,8 @@ build:
   apt_packages:
     - cmake
   tools:
-    python: "3.11"
-    rust: "1.78"
+    python: "latest"
+    rust: "latest"
 
 # VCS submodules configuration.
 submodules:
