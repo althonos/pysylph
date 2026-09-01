@@ -40,7 +40,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out dist -i python3.11 --features abi3
+          args: --release --out dist -i python3.13 --features abi3,extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -82,7 +82,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist -i python3.11 --features abi3
+          args: --release --out dist -i python3.13 --features abi3,extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -124,7 +124,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x86_64
-          args: --release --out dist -i python3.11 --features abi3
+          args: --release --out dist -i python3.13 --features abi3,extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -166,7 +166,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: aarch64
-          args: --release --out dist -i python3.11 --features abi3
+          args: --release --out dist -i python3.13 --features abi3,extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -177,7 +177,7 @@ jobs:
 
   wheel-win32-x86_64:
     name: Build Windows wheels (x86-64)
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -188,7 +188,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x64
-          args: --release --out dist i python3.8 -i python3.9 -i python3.10
+          args: --release --out dist -i python3.8 -i python3.9 -i python3.10
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -197,7 +197,7 @@ jobs:
           name: wheels-win32_x86_64
           path: dist
 
-  wheel-win32-x86_64:
+  wheel-win32-x86_64-abi3:
     name: Build Windows wheels (x86-64, ABI3)
     runs-on: windows-latest
     steps:
@@ -210,7 +210,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: x64
-          args: --release --out dist -i python3.11 --features abi3
+          args: --release --out dist -i python3.13 --features abi3,extension-module
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -271,7 +271,7 @@ jobs:
     - sdist
     - test-sdist
     - wheel-linux-aarch64
-    - wheel-linux-aarch64-abi
+    - wheel-linux-aarch64-abi3
     - wheel-linux-x86_64
     - wheel-linux-x86_64-abi3
     - wheel-macos-aarch64

@@ -6,7 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/althonos/pysylph/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/althonos/pysylph/compare/v0.1.3...HEAD
+
+
+## [v0.1.3] - 2026-09-01
+[v0.1.3]: https://github.com/althonos/pysylph/compare/v0.1.2...v0.1.3
+
+### Added
+- Wheels with Python 3.11 Limited API.
+
+### Changed
+- Update `sylph` to `v0.9.0`.
+- Update `pyo3` to `v0.29.0`.
 
 
 ## [v0.1.2] - 2024-11-05

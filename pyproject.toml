@@ -8,8 +8,7 @@ dynamic = ["version"]
 description = "PyO3 bindings and Python interface to sylph, an ultrafast method for containment ANI querying and taxonomic profiling."
 readme = 'README.md'
 requires-python = ">=3.7"
-license = "MIT"
-license-files = ["COPYING"]
+license = {name = "MIT", file = "COPYING"}
 authors = [
   { name = "Martin Larralde", email = "martin.larralde@embl.de" },
 ]
