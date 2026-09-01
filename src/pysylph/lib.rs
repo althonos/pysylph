@@ -280,6 +280,14 @@ impl<R: Read> std::iter::Iterator for DatabaseReader<R> {
 /// database file instead of loading it entirely through the `Database.load`
 /// class method.
 ///
+/// Example:
+///     >>> dbfile = pysylph.DatabaseFile("ecoli.syldb")
+///     >>> for sketch in dbfile:
+///     ...     print(sketch.name)
+///     test_files/e.coli-K12.fasta.gz
+///     test_files/e.coli-o157.fasta.gz
+///     test_files/e.coli-EC590.fasta.gz
+///
 #[pyclass(module = "pysylph.lib")]
 pub struct DatabaseFile {
     reader: DatabaseReader<std::io::BufReader<std::fs::File>>,
