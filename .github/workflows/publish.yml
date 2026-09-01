@@ -46,7 +46,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-manylinux_aarch64
+          name: wheels-manylinux_aarch64-abi3
           path: dist
 
   wheel-linux-x86_64:
@@ -130,7 +130,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos_x86_64
+          name: wheels-macos_x86_64-abi3
           path: dist
 
   wheel-macos-aarch64:
@@ -172,7 +172,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos_aarch64
+          name: wheels-macos_aarch64-abi3
           path: dist
 
   wheel-win32-x86_64:
@@ -216,7 +216,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-win32_x86_64
+          name: wheels-win32_x86_64-abi3
           path: dist
 
   sdist:
@@ -296,6 +296,8 @@ jobs:
     - name: Publish distributions to PyPI
       if: startsWith(github.ref, 'refs/tags')
       uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true
 
   release:
     environment: GitHub Releases
